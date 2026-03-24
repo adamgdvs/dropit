@@ -40,22 +40,31 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
   const managerRef = useRef<PeerManager | null>(null);
   const receiversRef = useRef<Map<string, FileReceiver>>(new Map());
 
-  // Zustand store actions
+  // Use refs for store actions to avoid re-triggering the effect
   const setDevices = useDeviceStore((s) => s.setDevices);
   const setIdentity = useDeviceStore((s) => s.setIdentity);
   const setSignalingConnected = useDeviceStore((s) => s.setSignalingConnected);
   const updateTransfer = useTransferStore((s) => s.updateTransfer);
   const addReceived = useFileStore((s) => s.addReceived);
 
-  const handleIncomingOffer = useCallback(
-    (offer: IncomingTransfer, decide: TransferDecision) => {
-      setPendingOffer({ offer, decide });
-    },
-    []
-  );
+  const storeActionsRef = useRef({ setDevices, setIdentity, setSignalingConnected, updateTransfer, addReceived });
+  storeActionsRef.current = { setDevices, setIdentity, setSignalingConnected, updateTransfer, addReceived };
 
-  const setupReceiver = useCallback(
-    (peerId: string, channel: RTCDataChannel) => {
+  const pendingOfferRef = useRef(setPendingOffer);
+  pendingOfferRef.current = setPendingOffer;
+
+  // Connect on mount and when roomId changes — stable effect, no dependency churn
+  useEffect(() => {
+    console.log(`[Transfer] Connecting to room: "${roomId}"`);
+
+    // Cleanup previous
+    for (const [, receiver] of receiversRef.current) {
+      receiver.destroy();
+    }
+    receiversRef.current.clear();
+    managerRef.current?.disconnect();
+
+    const setupReceiver = (peerId: string, channel: RTCDataChannel) => {
       const peerName = managerRef.current?.getPeers().get(peerId)?.name || "Unknown";
 
       receiversRef.current.get(peerId)?.destroy();
@@ -64,14 +73,14 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         channel,
         peerId,
         peerName,
-        updateTransfer,
-        handleIncomingOffer
+        (progress) => storeActionsRef.current.updateTransfer(progress),
+        (offer, decide) => pendingOfferRef.current({ offer, decide })
       );
 
       receiver.onFileReceived = (blob, fileName) => {
         console.log(`[Transfer] File received: ${fileName} (${blob.size} bytes)`);
         downloadBlob(blob, fileName);
-        addReceived({
+        storeActionsRef.current.addReceived({
           id: crypto.randomUUID(),
           name: fileName,
           size: blob.size,
@@ -83,58 +92,39 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
       };
 
       receiversRef.current.set(peerId, receiver);
-    },
-    [updateTransfer, handleIncomingOffer, addReceived]
-  );
+    };
 
-  const createManager = useCallback(
-    (targetRoomId: string) => {
-      // Cleanup old
-      for (const [, receiver] of receiversRef.current) {
-        receiver.destroy();
-      }
-      receiversRef.current.clear();
-      managerRef.current?.disconnect();
+    const manager = new PeerManager(SIGNAL_URL, {
+      onPeersChanged: (newPeers) => {
+        const deviceMap = new Map<string, DeviceInfo>();
+        for (const [id, peer] of newPeers) {
+          deviceMap.set(id, {
+            id,
+            name: peer.name,
+            deviceType: peer.deviceType,
+            connectionState: peer.connectionState,
+            hasDataChannel: peer.dataChannel !== null,
+          });
+        }
+        storeActionsRef.current.setDevices(deviceMap);
+      },
+      onDataChannel: (peerId, channel) => {
+        console.log(`[Transfer] Data channel received for ${peerId}, state: ${channel.readyState}`);
+        setupReceiver(peerId, channel);
+      },
+      onConnectionStateChanged: (connected) => {
+        storeActionsRef.current.setSignalingConnected(connected);
+      },
+      onJoined: (peerId, name, joinedRoomId) => {
+        storeActionsRef.current.setIdentity(peerId, name);
+        if (joinedRoomId) {
+          useDeviceStore.getState().setRoomId(joinedRoomId);
+        }
+      },
+    });
 
-      const manager = new PeerManager(SIGNAL_URL, {
-        onPeersChanged: (newPeers) => {
-          const deviceMap = new Map<string, DeviceInfo>();
-          for (const [id, peer] of newPeers) {
-            deviceMap.set(id, {
-              id,
-              name: peer.name,
-              deviceType: peer.deviceType,
-              connectionState: peer.connectionState,
-              hasDataChannel: peer.dataChannel !== null,
-            });
-          }
-          setDevices(deviceMap);
-        },
-        onDataChannel: (peerId, channel) => {
-          console.log(`[Transfer] Data channel ready with ${peerId}`);
-          setupReceiver(peerId, channel);
-        },
-        onConnectionStateChanged: (connected) => {
-          setSignalingConnected(connected);
-        },
-        onJoined: (peerId, name, joinedRoomId) => {
-          setIdentity(peerId, name);
-          if (joinedRoomId) {
-            useDeviceStore.getState().setRoomId(joinedRoomId);
-          }
-        },
-      });
-
-      managerRef.current = manager;
-      manager.connect(targetRoomId, detectDeviceType(), deviceName);
-    },
-    [deviceName, setupReceiver, setDevices, setSignalingConnected, setIdentity]
-  );
-
-  // Connect on mount and when roomId changes (room code pairing)
-  useEffect(() => {
-    console.log(`[Transfer] Connecting to room: "${roomId}"`);
-    createManager(roomId);
+    managerRef.current = manager;
+    manager.connect(roomId, detectDeviceType(), deviceName);
 
     return () => {
       console.log(`[Transfer] Cleaning up room: "${roomId}"`);
@@ -142,10 +132,10 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         receiver.destroy();
       }
       receiversRef.current.clear();
-      managerRef.current?.disconnect();
+      manager.disconnect();
       managerRef.current = null;
     };
-  }, [roomId, createManager]);
+  }, [roomId, deviceName]);
 
   const sendFiles = useCallback(
     async (peerId: string, files: File[]) => {
@@ -154,7 +144,7 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         useDeviceStore.getState().devices.get(peerId)?.name || "Unknown";
 
       if (!channel || channel.readyState !== "open") {
-        console.error(`[Transfer] No open channel to peer ${peerId}`);
+        console.error(`[Transfer] No open channel to peer ${peerId} (state: ${channel?.readyState})`);
         return;
       }
 
