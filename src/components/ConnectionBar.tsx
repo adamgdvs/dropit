@@ -2,6 +2,23 @@ import { useState } from "react";
 import { useDeviceStore } from "../stores/deviceStore";
 import { useTransferContext } from "../context/TransferContext";
 
+function getSignalHttpUrl(): string {
+  const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
+  // Handle both wss://domain and just domain formats
+  try {
+    // If it's a proper URL with protocol
+    if (wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://")) {
+      return wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+    }
+    // If it's just a domain
+    return `https://${wsUrl}`;
+  } catch {
+    return "http://localhost:3001";
+  }
+}
+
+const SIGNAL_HTTP_URL = getSignalHttpUrl();
+
 export default function ConnectionBar() {
   const myName = useDeviceStore((s) => s.myName);
   const roomId = useDeviceStore((s) => s.roomId);
@@ -13,30 +30,29 @@ export default function ConnectionBar() {
   const [joinCode, setJoinCode] = useState("");
   const [creating, setCreating] = useState(false);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const connected = connectedDevices();
 
-  const signalHttpUrl = (() => {
-    const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
-    try {
-      const url = new URL(wsUrl);
-      url.protocol = url.protocol === "wss:" ? "https:" : "http:";
-      return url.origin;
-    } catch {
-      return "http://localhost:3001";
-    }
-  })();
-
   const handleCreateRoom = async () => {
     setCreating(true);
+    setError(null);
     try {
-      const res = await fetch(`${signalHttpUrl}/api/room`, { method: "POST" });
+      const url = `${SIGNAL_HTTP_URL}/api/room`;
+      console.log("[ConnectionBar] Creating room via:", url);
+      const res = await fetch(url, { method: "POST" });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
       const data = await res.json();
       const code = data.roomCode as string;
+      if (!code) throw new Error("No roomCode in response");
       setCreatedCode(code);
       joinRoom(code);
     } catch (err) {
-      console.error("[ConnectionBar] Failed to create room:", err);
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.error("[ConnectionBar] Failed to create room:", msg, "URL:", SIGNAL_HTTP_URL);
+      setError(msg);
     } finally {
       setCreating(false);
     }
@@ -48,6 +64,7 @@ export default function ConnectionBar() {
       joinRoom(code);
       setShowJoin(false);
       setJoinCode("");
+      setError(null);
     }
   };
 
@@ -59,10 +76,7 @@ export default function ConnectionBar() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Left: identity + status */}
         <div className="flex items-center gap-4 min-w-0">
-          {/* Connection indicator */}
           <div className={`w-2 h-2 shrink-0 ${isConnected ? "bg-primary" : "bg-on-surface-variant"}`} />
-
-          {/* My name */}
           <div className="min-w-0">
             <span className="font-mono text-xs font-bold text-on-surface uppercase tracking-wider truncate block">
               {myName || "Connecting..."}
@@ -130,6 +144,13 @@ export default function ConnectionBar() {
           )}
         </div>
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="mt-2 font-mono text-[10px] text-primary">
+          ERROR: {error} — API: {SIGNAL_HTTP_URL}
+        </div>
+      )}
 
       {/* Join code input row */}
       {showJoin && (
