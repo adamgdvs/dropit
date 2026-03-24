@@ -5,9 +5,25 @@
  * and ICE/SDP exchange for a single peer connection.
  */
 
-const STUN_SERVERS: RTCIceServer[] = [
+const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
+  // Free TURN relay for NAT traversal (phone ↔ desktop across networks)
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
 ];
 
 export type ConnectionState = "new" | "connecting" | "connected" | "disconnected" | "failed";
@@ -26,7 +42,7 @@ export class PeerConnection {
 
   constructor(events: PeerConnectionEvents) {
     this.events = events;
-    this.pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {

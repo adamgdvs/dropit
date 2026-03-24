@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
+import ConnectionBar from "./ConnectionBar";
 import TransferToast from "./TransferToast";
 import { useTransferContext } from "../context/TransferContext";
 import { useTransferStore } from "../stores/transferStore";
@@ -31,6 +32,7 @@ export default function Layout() {
       <Sidebar />
       <main className="md:ml-72 min-h-screen pb-20 md:pb-0 relative">
         <TopBar />
+        <ConnectionBar />
         <Outlet />
       </main>
 
