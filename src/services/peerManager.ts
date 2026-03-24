@@ -1,0 +1,244 @@
+/**
+ * PeerManager
+ *
+ * Orchestrates SignalingClient + PeerConnection instances.
+ * Manages the lifecycle of all peer connections in a room.
+ * Provides a clean API for the UI layer to discover peers and send data.
+ */
+
+import { SignalingClient } from "./signaling";
+import { PeerConnection, type ConnectionState } from "./webrtc";
+
+export interface DiscoveredPeer {
+  id: string;
+  name: string;
+  deviceType: string;
+  connectionState: ConnectionState;
+  dataChannel: RTCDataChannel | null;
+}
+
+type PeerManagerEvents = {
+  onPeersChanged: (peers: Map<string, DiscoveredPeer>) => void;
+  onDataChannel: (peerId: string, channel: RTCDataChannel) => void;
+  onConnectionStateChanged: (connected: boolean) => void;
+  onJoined?: (peerId: string, name: string, roomId?: string) => void;
+};
+
+export class PeerManager {
+  private signaling: SignalingClient;
+  private connections = new Map<string, PeerConnection>();
+  private peers = new Map<string, DiscoveredPeer>();
+  private events: PeerManagerEvents;
+  private myId: string | null = null;
+  private cleanupFns: Array<() => void> = [];
+
+  constructor(signalingUrl: string, events: PeerManagerEvents) {
+    this.signaling = new SignalingClient(signalingUrl);
+    this.events = events;
+  }
+
+  /**
+   * Connect to signaling server and join a room.
+   */
+  connect(roomId: string = "default", deviceType: string = "desktop", name?: string) {
+    this.signaling.connect();
+
+    // When connected to signaling, join the room
+    this.cleanupFns.push(
+      this.signaling.on("connected", () => {
+        this.signaling.join(roomId, deviceType, name);
+        this.events.onConnectionStateChanged(true);
+      })
+    );
+
+    this.cleanupFns.push(
+      this.signaling.on("disconnected", () => {
+        this.events.onConnectionStateChanged(false);
+      })
+    );
+
+    // Handle room join confirmation
+    this.cleanupFns.push(
+      this.signaling.on("joined", (data) => {
+        this.myId = data.peerId;
+        this.events.onJoined?.(data.peerId, data.name, data.roomId);
+        console.log(`[PeerManager] Joined as "${data.name}" (${data.peerId}) in room "${data.roomId}"`);
+
+        // Register existing peers
+        for (const peer of data.peers) {
+          this.addPeer(peer.id, peer.name, peer.deviceType);
+          // Initiate WebRTC connection to each existing peer (we're the caller)
+          this.initiateConnection(peer.id);
+        }
+      })
+    );
+
+    // Handle new peer joining
+    this.cleanupFns.push(
+      this.signaling.on("peer-joined", (data) => {
+        console.log(`[PeerManager] Peer joined: "${data.name}" (${data.peerId})`);
+        this.addPeer(data.peerId, data.name, data.deviceType);
+        // Don't initiate connection — the new peer will do it (they got our info in "joined")
+      })
+    );
+
+    // Handle peer leaving
+    this.cleanupFns.push(
+      this.signaling.on("peer-left", (data) => {
+        console.log(`[PeerManager] Peer left: "${data.name}" (${data.peerId})`);
+        this.removePeer(data.peerId);
+      })
+    );
+
+    // Handle incoming WebRTC offer
+    this.cleanupFns.push(
+      this.signaling.on("offer", async (data) => {
+        console.log(`[PeerManager] Received offer from ${data.senderId}`);
+        const pc = this.getOrCreateConnection(data.senderId);
+        const answer = await pc.handleOffer(data.sdp);
+        this.signaling.sendAnswer(data.senderId, answer);
+      })
+    );
+
+    // Handle incoming WebRTC answer
+    this.cleanupFns.push(
+      this.signaling.on("answer", async (data) => {
+        console.log(`[PeerManager] Received answer from ${data.senderId}`);
+        const pc = this.connections.get(data.senderId);
+        if (pc) {
+          await pc.handleAnswer(data.sdp);
+        }
+      })
+    );
+
+    // Handle incoming ICE candidate
+    this.cleanupFns.push(
+      this.signaling.on("ice-candidate", async (data) => {
+        const pc = this.connections.get(data.senderId);
+        if (pc) {
+          await pc.addIceCandidate(data.candidate);
+        }
+      })
+    );
+  }
+
+  /**
+   * Initiate a WebRTC connection to a specific peer (caller side).
+   */
+  private async initiateConnection(peerId: string) {
+    const pc = this.getOrCreateConnection(peerId);
+    const offer = await pc.createOffer();
+    this.signaling.sendOffer(peerId, offer);
+  }
+
+  /**
+   * Get or create a PeerConnection for a given peer.
+   */
+  private getOrCreateConnection(peerId: string): PeerConnection {
+    if (this.connections.has(peerId)) {
+      return this.connections.get(peerId)!;
+    }
+
+    const pc = new PeerConnection({
+      onIceCandidate: (candidate) => {
+        this.signaling.sendIceCandidate(peerId, candidate.toJSON());
+      },
+      onDataChannel: (channel) => {
+        // Update peer's data channel reference
+        const peer = this.peers.get(peerId);
+        if (peer) {
+          peer.dataChannel = channel;
+          this.notifyPeersChanged();
+        }
+        this.events.onDataChannel(peerId, channel);
+
+        channel.onopen = () => {
+          console.log(`[PeerManager] Data channel open with ${peerId}`);
+          this.updatePeerState(peerId, "connected");
+        };
+
+        channel.onclose = () => {
+          console.log(`[PeerManager] Data channel closed with ${peerId}`);
+          this.updatePeerState(peerId, "disconnected");
+        };
+      },
+      onStateChange: (state) => {
+        this.updatePeerState(peerId, state);
+      },
+    });
+
+    this.connections.set(peerId, pc);
+    return pc;
+  }
+
+  private addPeer(id: string, name: string, deviceType: string) {
+    this.peers.set(id, {
+      id,
+      name,
+      deviceType,
+      connectionState: "new",
+      dataChannel: null,
+    });
+    this.notifyPeersChanged();
+  }
+
+  private removePeer(id: string) {
+    this.peers.delete(id);
+    const pc = this.connections.get(id);
+    if (pc) {
+      pc.close();
+      this.connections.delete(id);
+    }
+    this.notifyPeersChanged();
+  }
+
+  private updatePeerState(peerId: string, state: ConnectionState) {
+    const peer = this.peers.get(peerId);
+    if (peer) {
+      peer.connectionState = state;
+      this.notifyPeersChanged();
+    }
+  }
+
+  private notifyPeersChanged() {
+    this.events.onPeersChanged(new Map(this.peers));
+  }
+
+  /**
+   * Get a peer's data channel for sending data.
+   */
+  getDataChannel(peerId: string): RTCDataChannel | null {
+    return this.peers.get(peerId)?.dataChannel ?? null;
+  }
+
+  /**
+   * Get all discovered peers.
+   */
+  getPeers(): Map<string, DiscoveredPeer> {
+    return new Map(this.peers);
+  }
+
+  /**
+   * Get our own peer ID.
+   */
+  getMyId(): string | null {
+    return this.myId;
+  }
+
+  /**
+   * Disconnect from everything.
+   */
+  disconnect() {
+    for (const cleanup of this.cleanupFns) {
+      cleanup();
+    }
+    this.cleanupFns = [];
+    for (const [, pc] of this.connections) {
+      pc.close();
+    }
+    this.connections.clear();
+    this.peers.clear();
+    this.signaling.disconnect();
+    this.myId = null;
+  }
+}
