@@ -131,11 +131,13 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
     [deviceName, setupReceiver, setDevices, setSignalingConnected, setIdentity]
   );
 
-  // Connect on mount
+  // Connect on mount and when roomId changes (room code pairing)
   useEffect(() => {
+    console.log(`[Transfer] Connecting to room: "${roomId}"`);
     createManager(roomId);
 
     return () => {
+      console.log(`[Transfer] Cleaning up room: "${roomId}"`);
       for (const [, receiver] of receiversRef.current) {
         receiver.destroy();
       }
@@ -143,15 +145,7 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
       managerRef.current?.disconnect();
       managerRef.current = null;
     };
-  }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reconnect to a different room (called by TransferContext.joinRoom)
-  const reconnectToRoom = useCallback(
-    (newRoomId: string) => {
-      createManager(newRoomId);
-    },
-    [createManager]
-  );
+  }, [roomId, createManager]);
 
   const sendFiles = useCallback(
     async (peerId: string, files: File[]) => {
@@ -188,6 +182,5 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
     pendingOffer,
     sendFiles,
     respondToOffer,
-    reconnectToRoom,
   };
 }

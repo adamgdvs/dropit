@@ -62,7 +62,7 @@ export class PeerManager {
       this.signaling.on("joined", (data) => {
         this.myId = data.peerId;
         this.events.onJoined?.(data.peerId, data.name, data.roomId);
-        console.log(`[PeerManager] Joined as "${data.name}" (${data.peerId}) in room "${data.roomId}"`);
+        console.log(`[PeerManager] Joined as "${data.name}" (${data.peerId}) in room "${data.roomId}" — ${data.peers.length} existing peer(s)`);
 
         // Register existing peers
         for (const peer of data.peers) {

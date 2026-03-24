@@ -15,25 +15,23 @@ export function TransferProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const roomFromUrl = searchParams.get("room") || undefined;
 
-  const { pendingOffer, sendFiles, respondToOffer, reconnectToRoom } = useTransfer({
+  const { pendingOffer, sendFiles, respondToOffer } = useTransfer({
     roomId: roomFromUrl,
   });
 
+  // Only update the URL — the useEffect in useTransfer reacts to roomId changes
   const joinRoom = useCallback(
     (roomId: string) => {
       if (roomId === "auto") {
-        // Clear room param from URL, reconnect to auto
         setSearchParams((prev) => {
           prev.delete("room");
           return prev;
         });
-        reconnectToRoom("auto");
       } else {
         setSearchParams({ room: roomId });
-        reconnectToRoom(roomId);
       }
     },
-    [setSearchParams, reconnectToRoom]
+    [setSearchParams]
   );
 
   return (
