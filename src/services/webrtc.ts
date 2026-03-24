@@ -8,7 +8,6 @@
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  // Free TURN relay for NAT traversal (phone ↔ desktop across networks)
   {
     urls: "turn:openrelay.metered.ca:80",
     username: "openrelayproject",
@@ -50,7 +49,9 @@ export class PeerConnection {
       }
     };
 
+    // Callee side: receives data channel from remote peer
     this.pc.ondatachannel = (event) => {
+      console.log(`[WebRTC] Received remote data channel, state: ${event.channel.readyState}`);
       this.dataChannel = event.channel;
       this.setupDataChannel(this.dataChannel);
       this.events.onDataChannel(this.dataChannel);
@@ -58,6 +59,7 @@ export class PeerConnection {
 
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
+      console.log(`[WebRTC] connectionState: ${state}`);
       switch (state) {
         case "connecting":
           this.updateState("connecting");
@@ -74,16 +76,43 @@ export class PeerConnection {
           break;
       }
     };
+
+    // Fallback: some mobile browsers rely on iceConnectionState
+    this.pc.oniceconnectionstatechange = () => {
+      const iceState = this.pc.iceConnectionState;
+      console.log(`[WebRTC] iceConnectionState: ${iceState}`);
+      if (iceState === "connected" || iceState === "completed") {
+        if (this.state !== "connected") {
+          this.updateState("connected");
+        }
+      } else if (iceState === "failed") {
+        this.updateState("failed");
+      } else if (iceState === "disconnected") {
+        this.updateState("disconnected");
+      }
+    };
+
+    this.pc.onicegatheringstatechange = () => {
+      console.log(`[WebRTC] iceGatheringState: ${this.pc.iceGatheringState}`);
+    };
   }
 
   private updateState(state: ConnectionState) {
+    if (this.state === state) return;
     this.state = state;
     this.events.onStateChange(state);
   }
 
   private setupDataChannel(channel: RTCDataChannel) {
     channel.binaryType = "arraybuffer";
-    channel.bufferedAmountLowThreshold = 256 * 1024; // 256KB
+    channel.bufferedAmountLowThreshold = 256 * 1024;
+
+    // Log channel state transitions
+    const orig = channel.onopen;
+    channel.onopen = (e) => {
+      console.log(`[WebRTC] DataChannel "${channel.label}" opened`);
+      if (orig) (orig as EventListener)(e!);
+    };
   }
 
   /**
@@ -94,6 +123,10 @@ export class PeerConnection {
       ordered: true,
     });
     this.setupDataChannel(this.dataChannel);
+
+    console.log(`[WebRTC] Created local data channel, state: ${this.dataChannel.readyState}`);
+
+    // Fire onDataChannel so PeerManager can track it and set onopen handler
     this.events.onDataChannel(this.dataChannel);
 
     this.updateState("connecting");
@@ -131,16 +164,10 @@ export class PeerConnection {
     }
   }
 
-  /**
-   * Get the active data channel (if open).
-   */
   getDataChannel(): RTCDataChannel | null {
     return this.dataChannel;
   }
 
-  /**
-   * Close the connection and clean up.
-   */
   close() {
     this.dataChannel?.close();
     this.pc.close();

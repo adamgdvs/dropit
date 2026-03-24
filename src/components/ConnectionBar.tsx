@@ -4,13 +4,10 @@ import { useTransferContext } from "../context/TransferContext";
 
 function getSignalHttpUrl(): string {
   const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
-  // Handle both wss://domain and just domain formats
   try {
-    // If it's a proper URL with protocol
     if (wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://")) {
       return wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
     }
-    // If it's just a domain
     return `https://${wsUrl}`;
   } catch {
     return "http://localhost:3001";
@@ -23,7 +20,7 @@ export default function ConnectionBar() {
   const myName = useDeviceStore((s) => s.myName);
   const roomId = useDeviceStore((s) => s.roomId);
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
-  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const deviceList = useDeviceStore((s) => s.deviceList);
   const { joinRoom } = useTransferContext();
 
   const [showJoin, setShowJoin] = useState(false);
@@ -32,18 +29,16 @@ export default function ConnectionBar() {
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const connected = connectedDevices();
+  // Show ALL peers, not just connected ones — so we can see connection state
+  const allPeers = deviceList();
 
   const handleCreateRoom = async () => {
     setCreating(true);
     setError(null);
     try {
       const url = `${SIGNAL_HTTP_URL}/api/room`;
-      console.log("[ConnectionBar] Creating room via:", url);
       const res = await fetch(url, { method: "POST" });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       const data = await res.json();
       const code = data.roomCode as string;
       if (!code) throw new Error("No roomCode in response");
@@ -51,7 +46,7 @@ export default function ConnectionBar() {
       joinRoom(code);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      console.error("[ConnectionBar] Failed to create room:", msg, "URL:", SIGNAL_HTTP_URL);
+      console.error("[ConnectionBar] Failed to create room:", msg);
       setError(msg);
     } finally {
       setCreating(false);
@@ -70,6 +65,21 @@ export default function ConnectionBar() {
 
   const isAutoRoom = !roomId || roomId.startsWith("auto_");
 
+  const stateColor = (state: string) => {
+    if (state === "connected") return "bg-primary";
+    if (state === "connecting") return "bg-yellow-500";
+    if (state === "failed") return "bg-red-500";
+    return "bg-on-surface-variant";
+  };
+
+  const stateLabel = (state: string) => {
+    if (state === "connected") return "LIVE";
+    if (state === "connecting") return "CONNECTING";
+    if (state === "failed") return "FAILED";
+    if (state === "new") return "NEW";
+    return state.toUpperCase();
+  };
+
   return (
     <div className="bg-surface border-b border-outline px-4 md:px-8 py-3">
       {/* Main status row */}
@@ -87,21 +97,30 @@ export default function ConnectionBar() {
           </div>
         </div>
 
-        {/* Center: connected devices */}
+        {/* Center: all peers with state */}
         <div className="flex items-center gap-2 flex-wrap">
-          {connected.length > 0 ? (
-            connected.map((d) => (
+          {allPeers.length > 0 ? (
+            allPeers.map((d) => (
               <div
                 key={d.id}
-                className="flex items-center gap-2 bg-primary/5 border border-primary/20 px-3 py-1.5"
+                className={`flex items-center gap-2 px-3 py-1.5 border ${
+                  d.connectionState === "connected"
+                    ? "bg-primary/5 border-primary/20"
+                    : "bg-surface-variant/30 border-outline"
+                }`}
               >
-                <span className="material-symbols-outlined text-primary text-sm">
+                <span className={`material-symbols-outlined text-sm ${
+                  d.connectionState === "connected" ? "text-primary" : "text-on-surface-variant"
+                }`}>
                   {d.deviceType === "phone" ? "smartphone" : d.deviceType === "tablet" ? "tablet_mac" : "laptop_mac"}
                 </span>
                 <span className="font-mono text-[11px] font-bold text-on-surface uppercase">
                   {d.name}
                 </span>
-                <span className="w-1.5 h-1.5 bg-primary" />
+                <span className={`w-1.5 h-1.5 ${stateColor(d.connectionState)}`} />
+                <span className="font-mono text-[8px] text-on-surface-variant">
+                  {stateLabel(d.connectionState)}
+                </span>
               </div>
             ))
           ) : (
@@ -148,7 +167,7 @@ export default function ConnectionBar() {
       {/* Error display */}
       {error && (
         <div className="mt-2 font-mono text-[10px] text-primary">
-          ERROR: {error} — API: {SIGNAL_HTTP_URL}
+          ERROR: {error}
         </div>
       )}
 
