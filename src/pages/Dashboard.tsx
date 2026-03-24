@@ -5,11 +5,10 @@ import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
 import DropZone from "../components/DropZone";
 import PeerPicker from "../components/PeerPicker";
-import PairingPanel from "../components/PairingPanel";
 import { storageStats } from "../data/mock";
 
 export default function Dashboard() {
-  const { sendFiles, joinRoom } = useTransferContext();
+  const { sendFiles } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
@@ -121,11 +120,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Pairing Panel */}
-        <div className="mb-8 md:mb-12">
-          <PairingPanel onJoinRoom={joinRoom} />
         </div>
 
         {/* System Status */}
