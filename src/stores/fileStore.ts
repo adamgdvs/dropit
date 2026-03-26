@@ -8,6 +8,7 @@ export interface ReceivedFile {
   from: string;
   timestamp: number;
   blob: Blob;
+  previewUrl?: string; // Object URL for image/video thumbnails
 }
 
 export interface QueuedFile {
@@ -33,17 +34,27 @@ export const useFileStore = create<FileState>((set) => ({
   received: [],
   queued: [],
 
-  addReceived: (file) =>
+  addReceived: (file) => {
+    // Auto-generate preview URL for media types
+    const isMedia = file.type.startsWith("image/") || file.type.startsWith("video/");
+    const previewUrl = isMedia ? URL.createObjectURL(file.blob) : undefined;
     set((state) => ({
-      received: [file, ...state.received].slice(0, 100),
-    })),
+      received: [{ ...file, previewUrl }, ...state.received].slice(0, 100),
+    }));
+  },
 
-  clearReceived: () => set({ received: [] }),
+  clearReceived: () => {
+    const { received } = useFileStore.getState();
+    received.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+    set({ received: [] });
+  },
 
   removeReceived: (id) =>
-    set((state) => ({
-      received: state.received.filter((f) => f.id !== id),
-    })),
+    set((state) => {
+      const file = state.received.find(f => f.id === id);
+      if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
+      return { received: state.received.filter((f) => f.id !== id) };
+    }),
 
   addQueued: (files) =>
     set((state) => ({

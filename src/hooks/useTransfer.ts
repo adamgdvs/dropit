@@ -148,10 +148,74 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         return;
       }
 
+      let bundleId: string | undefined;
+
+      // If sending multiple files, send a bundle-offer first and wait for approval
+      if (files.length > 1) {
+        bundleId = crypto.randomUUID();
+        const bundleOffer = {
+          type: "bundle-offer" as const,
+          bundleId,
+          files: files.map(f => ({ fileName: f.name, fileSize: f.size, fileType: f.type })),
+          totalSize: files.reduce((sum, f) => sum + f.size, 0),
+          totalFiles: files.length,
+        };
+        channel.send(JSON.stringify(bundleOffer));
+        console.log(`[Transfer] Sent bundle-offer (${files.length} files) to ${peerName}`);
+
+        // Wait for bundle-accept or bundle-reject
+        const bundleAccepted = await new Promise<boolean>((resolve) => {
+          const handler = (event: MessageEvent) => {
+            if (typeof event.data !== "string") return;
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.bundleId !== bundleId) return;
+              if (msg.type === "bundle-accept") {
+                channel.removeEventListener("message", handler);
+                resolve(true);
+              } else if (msg.type === "bundle-reject") {
+                channel.removeEventListener("message", handler);
+                resolve(false);
+              }
+            } catch { /* ignore non-JSON */ }
+          };
+          channel.addEventListener("message", handler);
+
+          // Timeout after 60s
+          setTimeout(() => {
+            channel.removeEventListener("message", handler);
+            resolve(false);
+          }, 60000);
+        });
+
+        if (!bundleAccepted) {
+          console.log(`[Transfer] Bundle rejected by ${peerName}`);
+          // Update progress for all files as rejected
+          for (const file of files) {
+            updateTransfer({
+              transferId: crypto.randomUUID(),
+              fileName: file.name,
+              fileSize: file.size,
+              status: "rejected",
+              progress: 0,
+              bytesTransferred: 0,
+              speed: 0,
+              eta: 0,
+              direction: "send",
+              peerId,
+              peerName,
+              errorMessage: "Transfer was declined by the recipient.",
+            });
+          }
+          return;
+        }
+        console.log(`[Transfer] Bundle accepted by ${peerName}`);
+      }
+
       for (const file of files) {
         const sender = new FileSender(channel, updateTransfer);
         console.log(`[Transfer] Sending ${file.name} (${file.size} bytes) to ${peerName}`);
-        const success = await sender.send(file, peerId, peerName);
+        const success = await sender.send(file, peerId, peerName, bundleId);
         console.log(`[Transfer] ${file.name}: ${success ? "complete" : "failed"}`);
       }
     },

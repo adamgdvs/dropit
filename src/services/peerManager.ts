@@ -31,6 +31,8 @@ export class PeerManager {
   private events: PeerManagerEvents;
   private myId: string | null = null;
   private cleanupFns: Array<() => void> = [];
+  private peerTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private static STALE_PEER_TIMEOUT = 20_000; // 20 seconds
 
   constructor(signalingUrl: string, events: PeerManagerEvents) {
     this.signaling = new SignalingClient(signalingUrl);
@@ -179,10 +181,12 @@ export class PeerManager {
       connectionState: "new",
       dataChannel: null,
     });
+    this.startStaleTimer(id);
     this.notifyPeersChanged();
   }
 
   private removePeer(id: string) {
+    this.clearStaleTimer(id);
     this.peers.delete(id);
     const pc = this.connections.get(id);
     if (pc) {
@@ -196,7 +200,37 @@ export class PeerManager {
     const peer = this.peers.get(peerId);
     if (peer) {
       peer.connectionState = state;
+      // Clear stale timer once connected, or restart if still connecting
+      if (state === "connected") {
+        this.clearStaleTimer(peerId);
+      } else if (state === "failed" || state === "disconnected") {
+        this.clearStaleTimer(peerId);
+        // Remove failed/disconnected peers after a short delay
+        setTimeout(() => this.removePeer(peerId), 3000);
+      }
       this.notifyPeersChanged();
+    }
+  }
+
+  private startStaleTimer(peerId: string) {
+    this.clearStaleTimer(peerId);
+    this.peerTimers.set(
+      peerId,
+      setTimeout(() => {
+        const peer = this.peers.get(peerId);
+        if (peer && peer.connectionState !== "connected") {
+          console.log(`[PeerManager] Removing stale peer "${peer.name}" (stuck in ${peer.connectionState})`);
+          this.removePeer(peerId);
+        }
+      }, PeerManager.STALE_PEER_TIMEOUT)
+    );
+  }
+
+  private clearStaleTimer(peerId: string) {
+    const timer = this.peerTimers.get(peerId);
+    if (timer) {
+      clearTimeout(timer);
+      this.peerTimers.delete(peerId);
     }
   }
 
@@ -233,6 +267,10 @@ export class PeerManager {
       cleanup();
     }
     this.cleanupFns = [];
+    for (const [, timer] of this.peerTimers) {
+      clearTimeout(timer);
+    }
+    this.peerTimers.clear();
     for (const [, pc] of this.connections) {
       pc.close();
     }

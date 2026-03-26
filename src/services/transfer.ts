@@ -20,12 +20,26 @@ interface FileOfferMessage {
   fileSize: number;
   fileType: string;
   totalChunks: number;
-  hash?: string; // Pre-computed by sender if available
+  hash?: string;
+  bundleId?: string; // Present when part of a bundle
 }
 
 interface FileResponseMessage {
   type: "file-accept" | "file-reject";
   transferId: string;
+}
+
+interface BundleOfferMessage {
+  type: "bundle-offer";
+  bundleId: string;
+  files: { fileName: string; fileSize: number; fileType: string }[];
+  totalSize: number;
+  totalFiles: number;
+}
+
+interface BundleResponseMessage {
+  type: "bundle-accept" | "bundle-reject";
+  bundleId: string;
 }
 
 interface ChunkMessage {
@@ -50,6 +64,8 @@ interface HashVerifyMessage {
 export type TransferMessage =
   | FileOfferMessage
   | FileResponseMessage
+  | BundleOfferMessage
+  | BundleResponseMessage
   | ChunkMessage
   | TransferCompleteMessage
   | HashVerifyMessage;
@@ -114,7 +130,7 @@ export class FileSender {
    * Send a file to the connected peer. Returns a promise that resolves
    * when the transfer is complete (or rejects on failure/rejection).
    */
-  async send(file: File, peerId: string, peerName: string): Promise<boolean> {
+  async send(file: File, peerId: string, peerName: string, bundleId?: string): Promise<boolean> {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     const makeProgress = (
@@ -145,6 +161,7 @@ export class FileSender {
         fileSize: file.size,
         fileType: file.type,
         totalChunks,
+        bundleId,
       };
       this.sendJson(offer);
       this.onProgress(makeProgress("pending", 0));
@@ -308,6 +325,11 @@ export interface IncomingTransfer {
   totalChunks: number;
   peerId: string;
   peerName: string;
+  // Bundle info (present when this is a bundle offer)
+  bundleId?: string;
+  bundleFiles?: { fileName: string; fileSize: number; fileType: string }[];
+  totalFiles?: number;
+  totalSize?: number;
 }
 
 export type TransferDecision = (accept: boolean) => void;
@@ -324,6 +346,9 @@ export class FileReceiver {
   private expectingBinary = new Map<string, { index: number; total: number }>();
   private startTimes = new Map<string, number>();
   private bytesReceived = new Map<string, number>();
+
+  // Bundle state — approved bundles auto-accept individual file-offers
+  private approvedBundles = new Set<string>();
 
   constructor(
     channel: RTCDataChannel,
@@ -355,6 +380,9 @@ export class FileReceiver {
     }
 
     switch (msg.type) {
+      case "bundle-offer":
+        this.handleBundleOffer(msg as BundleOfferMessage, peerId, peerName);
+        break;
       case "file-offer":
         this.handleOffer(msg, peerId, peerName);
         break;
@@ -365,6 +393,37 @@ export class FileReceiver {
         this.handleComplete(msg, peerId, peerName);
         break;
     }
+  }
+
+  private handleBundleOffer(msg: BundleOfferMessage, peerId: string, peerName: string) {
+    // Present the bundle as a single approval prompt
+    const bundleOffer: IncomingTransfer = {
+      transferId: msg.bundleId,
+      fileName: msg.files.length === 2
+        ? `${msg.files[0].fileName} and ${msg.files[1].fileName}`
+        : `${msg.files[0].fileName} and ${msg.totalFiles - 1} other files`,
+      fileSize: msg.totalSize,
+      fileType: "bundle",
+      totalChunks: 0,
+      peerId,
+      peerName,
+      bundleId: msg.bundleId,
+      bundleFiles: msg.files,
+      totalFiles: msg.totalFiles,
+      totalSize: msg.totalSize,
+    };
+
+    this.onIncomingOffer(bundleOffer, (accept: boolean) => {
+      const response: BundleResponseMessage = {
+        type: accept ? "bundle-accept" : "bundle-reject",
+        bundleId: msg.bundleId,
+      };
+      this.channel.send(JSON.stringify(response));
+
+      if (accept) {
+        this.approvedBundles.add(msg.bundleId);
+      }
+    });
   }
 
   private handleOffer(msg: FileOfferMessage, peerId: string, peerName: string) {
@@ -378,6 +437,21 @@ export class FileReceiver {
       peerName,
     };
 
+    // If this file is part of an approved bundle, auto-accept
+    if (msg.bundleId && this.approvedBundles.has(msg.bundleId)) {
+      const response: FileResponseMessage = {
+        type: "file-accept",
+        transferId: msg.transferId,
+      };
+      this.channel.send(JSON.stringify(response));
+      this.chunks.set(msg.transferId, []);
+      this.metadata.set(msg.transferId, offer);
+      this.startTimes.set(msg.transferId, Date.now());
+      this.bytesReceived.set(msg.transferId, 0);
+      return;
+    }
+
+    // Single file — show approval prompt as before
     this.onIncomingOffer(offer, (accept: boolean) => {
       const response: FileResponseMessage = {
         type: accept ? "file-accept" : "file-reject",

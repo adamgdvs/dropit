@@ -1,63 +1,88 @@
 @import "tailwindcss";
 
 @theme {
-  /* Operational Intelligence Design System — Light Mode */
-  --color-primary: #FF573E;
-  --color-primary-hover: #E04430;
-  --color-background: #F5F5F5;
-  --color-surface: #EBEBEB;
-  --color-surface-variant: #DCDCDC;
-  --color-surface-container: #DCDCDC;
-  --color-surface-container-high: #EBEBEB;
-  --color-on-surface: #1A1A1A;
-  --color-on-surface-variant: #707070;
-  --color-outline: #DCDCDC;
-  --color-outline-variant: #C0C0C0;
-  --color-error: #FF573E;
-  --color-error-container: #FFF0EE;
+  --color-surface-dim: #131313;
+  --color-on-secondary-container: #b6b5b5;
+  --color-tertiary-fixed-dim: #61d6e9;
+  --color-secondary: #c7c6c6;
+  --color-on-tertiary-fixed: #001f24;
+  --color-on-primary-container: #5b0200;
+  --color-secondary-fixed: #e3e2e2;
+  --color-tertiary-container: #069fb1;
+  --color-surface-tint: #ffb4a7;
+  --color-surface-container-high: #2a2a2a;
+  --color-on-secondary-fixed-variant: #464747;
+  --color-error: #ffb4ab;
+  --color-surface-variant: #353535;
+  --color-surface-bright: #393939;
+  --color-tertiary: #61d6e9;
+  --color-surface-container-low: #1b1b1c;
+  --color-outline-variant: #5b403b;
+  --color-on-primary-fixed: #400100;
+  --color-inverse-surface: #e5e2e1;
+  --color-on-background: #e5e2e1;
+  --color-outline: #ab8983;
+  --color-on-secondary-fixed: #1b1c1c;
+  --color-on-surface: #e5e2e1;
+  --color-primary-fixed-dim: #ffb4a7;
+  --color-secondary-container: #464747;
+  --color-on-secondary: #303031;
+  --color-on-tertiary: #00363d;
+  --color-inverse-primary: #b91d0e;
+  --color-tertiary-fixed: #9bf0ff;
+  --color-on-primary-fixed-variant: #920600;
+  --color-on-surface-variant: #e4beb7;
+  --color-background: #131313;
+  --color-secondary-fixed-dim: #c7c6c6;
+  --color-on-tertiary-container: #002f35;
+  --color-error-container: #93000a;
+  --color-on-tertiary-fixed-variant: #004f58;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-inverse-on-surface: #303030;
+  --color-primary-container: #ff553e;
+  --color-primary: #ffb4a7;
+  --color-primary-fixed: #ffdad4;
+  --color-on-primary: #680300;
+  --color-on-error-container: #ffdad6;
+  --color-surface-container: #202020;
+  --color-surface: #131313;
+  --color-on-error: #690005;
+  --color-surface-container-highest: #353535;
 
-  --font-sans: "Space Grotesk", system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, monospace;
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
 
-  --radius-none: 0px;
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-DEFAULT: 0px;
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
 }
 
 body {
-  font-family: var(--font-sans);
   background-color: var(--color-background);
   color: var(--color-on-surface);
+  font-family: var(--font-body);
   margin: 0;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode overrides */
-.dark {
-  --color-primary: #FF573E;
-  --color-primary-hover: #FF7A66;
-  --color-background: #121212;
-  --color-surface: #1A1A1A;
-  --color-surface-variant: #2A2A2A;
-  --color-surface-container: #2A2A2A;
-  --color-surface-container-high: #333333;
-  --color-on-surface: #E5E5E5;
-  --color-on-surface-variant: #888888;
-  --color-outline: #2A2A2A;
-  --color-outline-variant: #4A4A4A;
-  --color-error: #FF573E;
-  --color-error-container: #3D1410;
-}
-
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--color-background); border-left: 1px solid var(--color-outline); }
-::-webkit-scrollbar-thumb { background: var(--color-outline); }
-::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+::-webkit-scrollbar-track { background: var(--color-background); border-left: 1px solid var(--color-surface-container-highest); }
+::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #FF513A; }
+
+.font-grotesk { font-family: var(--font-headline); }
+.glass-panel {
+  background: rgba(42, 42, 42, 0.4);
+  backdrop-filter: blur(12px);
+}
+.dashed-border {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23FF513A' stroke-width='2' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+}
 
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
@@ -65,39 +90,8 @@ body {
 }
 
 ::selection {
-  background-color: var(--color-primary);
+  background-color: #FF513A;
   color: white;
-}
-
-/* Corner marks decorative element */
-.corner-marks {
-  position: relative;
-}
-.corner-marks::before, .corner-marks::after {
-  content: '';
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--color-primary);
-}
-.corner-marks::before { top: 0; left: 0; border-right: none; border-bottom: none; }
-.corner-marks::after { bottom: 0; right: 0; border-left: none; border-top: none; }
-
-/* Scanline effect */
-@keyframes scanline {
-  0% { top: -100px; }
-  100% { top: 100%; }
-}
-
-.scanline-effect {
-  pointer-events: none;
-  position: absolute;
-  width: 100%;
-  height: 100px;
-  z-index: 10;
-  background: linear-gradient(0deg, transparent 0%, rgba(255,87,62,0.05) 50%, transparent 100%);
-  opacity: 0.15;
-  animation: scanline 10s linear infinite;
 }
 
 /* Animations */
@@ -123,20 +117,12 @@ body {
 }
 .animate-shake { animation: shake 300ms ease-out; }
 
-@keyframes kinetic-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-.animate-kinetic-pulse { animation: kinetic-pulse 1.5s ease-in-out infinite; }
-
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-slide-in,
   .animate-check-pop,
   .animate-shake,
-  .animate-kinetic-pulse,
   .animate-spin,
-  .animate-pulse,
-  .scanline-effect { animation: none !important; }
+  .animate-pulse { animation: none !important; }
   * { transition-duration: 0ms !important; }
 }

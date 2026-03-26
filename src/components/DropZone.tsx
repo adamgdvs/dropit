@@ -65,23 +65,23 @@ export default function DropZone({
   );
 
   return (
-    <div className={className}>
+    <section className={`relative ${className}`}>
+      {isPrimary && (
+        <div className="flex items-baseline justify-between mb-4 mt-2">
+          <h2 className="text-2xl font-headline font-bold uppercase tracking-tighter text-on-surface">{title}</h2>
+          <span className="text-[10px] font-mono text-secondary/40 tracking-[0.2em] hidden sm:block">ENCRYPTED_TUNNEL::ACTIVE</span>
+        </div>
+      )}
+      
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          ${isPrimary
-            ? isDragOver
-              ? "border-2 border-dashed border-primary bg-primary/5"
-              : "border-2 border-dashed border-on-surface-variant bg-background hover:border-primary hover:bg-primary/5"
-            : isDragOver
-              ? "border border-dashed border-primary bg-primary/5"
-              : "border border-dashed border-outline bg-surface hover:border-on-surface hover:bg-background"
-          }
-          flex flex-col items-center justify-center transition-colors cursor-pointer
-          ${isPrimary ? "p-12 md:p-16" : "p-10"}
+          w-full flex flex-col items-center justify-center group cursor-pointer transition-colors duration-500
+          ${isPrimary ? "dashed-border py-8 hover:bg-surface-container-low/50" : "dashed-border py-6 hover:bg-surface-container-low/50"}
+          ${isDragOver ? "bg-surface-container-low border-primary" : ""}
         `}
       >
         <input
@@ -92,42 +92,26 @@ export default function DropZone({
           onChange={handleFileInput}
           aria-label={`Select files for ${title}`}
         />
-        <div
-          className={`
-            ${isPrimary
-              ? "w-16 h-16 border border-on-surface-variant text-on-surface-variant mb-6"
-              : "w-10 h-10 border border-outline text-on-surface-variant mb-4"
-            }
-            flex items-center justify-center transition-colors
-            ${isDragOver ? "border-primary text-primary" : ""}
-          `}
-        >
-          <span className={`material-symbols-outlined ${isPrimary ? "text-3xl" : "text-xl"}`}>
+        <div className={`flex flex-col items-center gap-4 text-center ${isPrimary ? "p-8" : "p-4"}`}>
+          <span className={`material-symbols-outlined text-[#FF513A] transition-transform duration-300 group-hover:-translate-y-2 ${isPrimary ? "text-4xl" : "text-2xl"}`}>
             {isDragOver ? "file_download" : icon}
           </span>
+          <h3 className={`font-headline font-bold uppercase tracking-tight ${isPrimary ? "text-lg" : "text-sm"}`}>
+            {isDragOver ? "AWAITING DROP" : isPrimary ? "Initialize Payload" : title}
+          </h3>
+          <p className={`font-mono text-secondary/60 ${isPrimary ? "text-[10px]" : "text-[8px]"}`}>
+            {isDragOver ? "RELEASE TO TRANSMIT" : (
+              <>
+                DRAG & DROP OR <span className="text-[#FF513A] underline decoration-[#FF513A]/30 underline-offset-4">{action || "SELECT CORE FILES"}</span>
+              </>
+            )}
+          </p>
         </div>
-        <h3
-          className={`font-bold uppercase tracking-tight ${
-            isPrimary ? "text-2xl mb-2" : "text-sm"
-          }`}
-        >
-          {isDragOver ? "Drop Here" : title}
-        </h3>
-        <p className={`font-mono text-on-surface-variant text-center ${isPrimary ? "text-xs max-w-sm mb-8" : "text-[10px] mt-1 max-w-[200px]"}`}>
-          {isDragOver ? "Release to add files" : subtitle}
-        </p>
-        {action && !isDragOver && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              fileInputRef.current?.click();
-            }}
-            className="px-8 py-3 bg-primary text-white font-mono text-xs uppercase tracking-wider hover:bg-primary-hover transition-colors"
-          >
-            {action}
-          </button>
-        )}
       </div>
-    </div>
+      
+      {!isPrimary && subtitle && (
+        <div className="mt-2 text-[10px] font-mono text-secondary/50 uppercase tracing-wider text-center">{subtitle}</div>
+      )}
+    </section>
   );
 }

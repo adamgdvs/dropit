@@ -1,267 +1,250 @@
 import { useTransferContext } from "../context/TransferContext";
 import { useDeviceStore } from "../stores/deviceStore";
+import { useFileStore } from "../stores/fileStore";
 import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
-import ProgressBar from "../components/ProgressBar";
 import DropZone from "../components/DropZone";
+import PeerPicker from "../components/PeerPicker";
 import { useState } from "react";
-
-const deviceIcons: Record<string, string> = {
-  phone: "smartphone",
-  tablet: "tablet_mac",
-  desktop: "laptop_mac",
-};
 
 export default function Send() {
   const { sendFiles } = useTransferContext();
   const deviceList = useDeviceStore((s) => s.deviceList);
+  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const queued = useFileStore((s) => s.queued);
+  const addQueued = useFileStore((s) => s.addQueued);
+  const removeQueued = useFileStore((s) => s.removeQueued);
+  const clearQueued = useFileStore((s) => s.clearQueued);
   const activeList = useTransferStore((s) => s.activeList);
-  const history = useTransferStore((s) => s.history);
   const totalSpeed = useTransferStore((s) => s.totalSpeed);
-  const clearAll = useTransferStore((s) => s.clearAll);
 
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 
   const peers = deviceList();
+  const connected = connectedDevices();
   const nearbyDevices = peers.filter((d) => d.connectionState === "connected");
   const transfers = activeList();
-  const completedSends = history.filter((t) => t.direction === "send");
-  const activeCount = transfers.filter((t) => t.status !== "complete").length;
 
-  const handleQueueFiles = (files: File[]) => {
+  // Add files to the staging queue
+  const handleAddFiles = (files: File[]) => {
+    addQueued(files);
+  };
+
+  // Send all queued files
+  const handleSendAll = () => {
+    const files = queued.map((q) => q.file);
+    if (files.length === 0) return;
+
     if (selectedPeer) {
       sendFiles(selectedPeer, files);
-    } else if (nearbyDevices.length === 1) {
-      sendFiles(nearbyDevices[0].id, files);
+      clearQueued();
+    } else if (connected.length === 1) {
+      sendFiles(connected[0].id, files);
+      clearQueued();
+    } else if (connected.length > 1) {
+      setPendingFiles(files);
     }
   };
 
+  const handlePeerSelect = (peerId: string) => {
+    if (pendingFiles) {
+      sendFiles(peerId, pendingFiles);
+      clearQueued();
+      setPendingFiles(null);
+    }
+  };
+
+  const iconForType = (type: string): string => {
+    if (type.startsWith("image/")) return "image";
+    if (type.startsWith("video/")) return "video_file";
+    if (type.startsWith("audio/")) return "audio_file";
+    if (type.includes("pdf")) return "picture_as_pdf";
+    if (type.includes("zip") || type.includes("rar")) return "folder_zip";
+    return "description";
+  };
+
   return (
-    <div className="px-4 pt-6 pb-6 md:px-12 md:pt-12 md:pb-12 min-h-screen bg-[repeating-linear-gradient(to_right,var(--color-outline)_0px,var(--color-outline)_1px,transparent_1px,transparent_80px),repeating-linear-gradient(to_bottom,var(--color-outline)_0px,var(--color-outline)_1px,transparent_1px,transparent_80px)]">
-      <header className="mb-8 md:mb-12 border-b border-outline pb-8">
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tighter uppercase mb-4">
-          Artifact Transfer
-        </h1>
-        <p className="font-mono text-primary text-sm uppercase">
-          Direct device-to-device streaming on Kinetic network.
-        </p>
-      </header>
+    <div className="pt-12 px-4 md:px-6 pb-6 min-h-screen">
+      <div className="flex flex-col lg:flex-row gap-8">
 
-      <div className="flex flex-col lg:flex-row gap-8 flex-1">
-        {/* Left: Nearby Targets */}
-        <div className="lg:w-1/3 flex flex-col">
-          <div className="flex justify-between items-center mb-6 border-b border-outline pb-4">
-            <h2 className="font-bold text-xl tracking-wide uppercase flex items-center gap-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary">
-                <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
-              </svg>
-              Nearby Targets
-            </h2>
-            <span className="font-mono text-xs border border-outline px-2 py-1 text-on-surface-variant">
-              {nearbyDevices.length} FOUND
-            </span>
-          </div>
+        {/* ── Main Column ── */}
+        <div className="flex-1 lg:max-w-4xl space-y-6">
 
-          {nearbyDevices.length === 0 ? (
-            <div className="border border-outline p-8 text-center">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">radar</span>
-              <p className="font-mono text-sm font-bold text-on-surface-variant uppercase">Scanning...</p>
-              <p className="font-mono text-[10px] text-on-surface-variant mt-1">
-                Open DropIt on another device
+          {/* Header */}
+          <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-surface-container-highest pb-6">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tighter uppercase text-on-surface">Send Files</h1>
+              <p className="text-secondary font-label text-[10px] uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                {nearbyDevices.length} NODE{nearbyDevices.length !== 1 ? "S" : ""} ONLINE // {queued.length} QUEUED
               </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {nearbyDevices.map((device) => (
-                <div
-                  key={device.id}
-                  onClick={() => setSelectedPeer(device.id)}
-                  className={`border p-6 cursor-pointer transition-colors relative corner-marks ${
-                    selectedPeer === device.id
-                      ? "border-primary bg-primary/5"
-                      : "border-outline hover:border-primary"
-                  }`}
-                >
-                  <div className={`w-12 h-12 border flex items-center justify-center mb-6 text-primary ${
-                    selectedPeer === device.id ? "border-primary" : "border-outline"
-                  }`}>
-                    <span className="material-symbols-outlined">
-                      {deviceIcons[device.deviceType] || "devices"}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-lg tracking-wide uppercase mb-1">{device.name}</h3>
-                  <p className="font-mono text-[10px] text-primary uppercase">{device.deviceType} Node</p>
-                </div>
-              ))}
+            <div className="flex gap-2">
+              {queued.length > 0 && (
+                <button onClick={handleSendAll} className="bg-primary hover:bg-opacity-90 text-white px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">rocket_launch</span>
+                  Stream All
+                </button>
+              )}
+              {queued.length > 0 && (
+                <button onClick={clearQueued} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                  Purge
+                </button>
+              )}
             </div>
-          )}
+          </header>
 
-          {/* Completed sends */}
-          {completedSends.length > 0 && (
-            <div className="mt-8">
-              <h3 className="font-bold uppercase tracking-wide mb-4 border-b border-outline pb-3 text-sm">
-                Operation Log
-              </h3>
-              <div className="space-y-2">
-                {completedSends.slice(0, 3).map((t) => (
-                  <div key={t.transferId} className="flex items-center gap-4 border border-outline p-3">
-                    <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${
-                      t.status === "complete" ? "border border-primary text-primary" : "border border-outline text-on-surface-variant"
-                    }`}>
-                      <span className="material-symbols-outlined text-sm">
-                        {t.status === "complete" ? "check" : "close"}
+          {/* Nearby Devices */}
+          <section>
+            <h2 className="font-headline text-sm font-medium text-secondary uppercase tracking-[0.2em] mb-4">Nearby Devices</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {nearbyDevices.length === 0 ? (
+                <div className="col-span-full border border-surface-container-highest p-8 text-center text-secondary">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">radar</span>
+                  <p className="font-mono text-sm uppercase">Scanning for nodes...</p>
+                  <p className="font-mono text-[10px] mt-1">Open DropIt on another device</p>
+                </div>
+              ) : (
+                nearbyDevices.map((device) => (
+                  <div
+                    key={device.id}
+                    onClick={() => setSelectedPeer(device.id)}
+                    className={`bg-surface-container-low p-5 flex items-center gap-4 cursor-pointer transition-all duration-300 border-l-2
+                      ${selectedPeer === device.id ? "bg-surface-container-high border-primary" : "border-transparent hover:bg-surface-container hover:border-surface-container-highest"}
+                    `}
+                  >
+                    <div className="w-10 h-10 bg-surface-container-highest flex items-center justify-center rounded-sm shrink-0">
+                      <span className="material-symbols-outlined text-primary">
+                        {device.deviceType === "phone" ? "smartphone" : device.deviceType === "tablet" ? "tablet_mac" : "laptop_mac"}
                       </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-mono font-bold text-xs truncate">{t.fileName}</p>
-                      <p className="font-mono text-[10px] text-on-surface-variant">
-                        {formatBytes(t.fileSize)} &bull; {t.peerName}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-headline font-bold text-on-surface text-sm tracking-tight uppercase truncate">{device.name}</h3>
+                      <p className="text-[10px] text-primary font-bold uppercase tracking-widest">{device.deviceType} Node</p>
                     </div>
-                    <span className={`font-mono text-[10px] font-bold uppercase ${t.status === "complete" ? "text-primary" : "text-error"}`}>
-                      {t.status === "complete" ? "Done" : "Failed"}
-                    </span>
+                    {selectedPeer === device.id && (
+                      <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+                    )}
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
+          </section>
+
+          {/* Drop Zone */}
+          <DropZone
+            title="Drop Files Here"
+            subtitle="Files will be added to the queue below"
+            onFilesSelected={handleAddFiles}
+          />
+
+          {/* Queued Files Table */}
+          {queued.length > 0 && (
+            <section className="bg-surface-container-low rounded-sm overflow-hidden border border-surface-container-highest">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface-container-high text-secondary text-[10px] font-bold uppercase tracking-widest">
+                      <th className="px-6 py-4">Filename</th>
+                      <th className="px-6 py-4 hidden md:table-cell">Format</th>
+                      <th className="px-6 py-4">Size</th>
+                      <th className="px-6 py-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {queued.map((item) => (
+                      <tr key={item.id} className="hover:bg-surface-container-highest/50 transition-colors border-b border-surface-container-highest/30">
+                        <td className="px-6 py-4 text-on-surface font-medium flex items-center gap-3">
+                          <span className="material-symbols-outlined text-primary text-lg">{iconForType(item.file.type)}</span>
+                          <span className="truncate max-w-[150px] md:max-w-xs">{item.file.name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-secondary hidden md:table-cell text-xs uppercase font-mono">
+                          {item.file.type.split("/")[1] || "FILE"}
+                        </td>
+                        <td className="px-6 py-4 text-secondary text-xs font-mono">{formatBytes(item.file.size)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => removeQueued(item.id)} className="text-secondary hover:text-primary transition-colors">
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
         </div>
 
-        {/* Right: Stream Queue */}
-        <div className="lg:w-2/3 border border-outline bg-surface p-6 md:p-8 flex flex-col relative overflow-hidden">
-          {/* Decorative SVG */}
-          <svg className="absolute right-[-20%] bottom-[-20%] w-[80%] h-auto opacity-[0.04] pointer-events-none text-on-surface-variant" viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5">
-            <circle cx="100" cy="100" r="90" />
-            <ellipse cx="100" cy="100" rx="90" ry="30" />
-            <ellipse cx="100" cy="100" rx="90" ry="60" />
-            <line x1="10" y1="100" x2="190" y2="100" />
-            <line x1="100" y1="10" x2="100" y2="190" />
-          </svg>
-
-          <div className="mb-8 md:mb-12 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tighter uppercase mb-2">Stream Queue</h2>
-              <p className="font-mono text-[10px] text-on-surface-variant uppercase">
-                {activeCount} Active Stream{activeCount !== 1 ? "s" : ""}
-              </p>
-            </div>
-            {transfers.length > 0 && (
-              <button onClick={clearAll} className="font-mono text-xs font-bold text-on-surface-variant hover:text-primary uppercase tracking-widest">
-                Clear
-              </button>
-            )}
+        {/* ── Stream Queue Sidebar ── */}
+        <aside className="lg:w-80 bg-surface-container border border-surface-container-highest p-6 relative lg:sticky lg:top-24 max-h-[calc(100vh-6rem)] overflow-y-auto">
+          <div className="mb-8">
+            <h2 className="font-headline text-sm font-bold text-on-surface uppercase tracking-widest">Stream Queue</h2>
+            <div className="h-[2px] w-12 bg-primary mt-2"></div>
           </div>
 
-          <div className="space-y-6 flex-1 relative z-10">
+          <div className="space-y-8 pr-2">
             {transfers.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
-                <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-4">inventory_2</span>
-                <h3 className="font-mono text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-2">
-                  No Active Transfers
-                </h3>
-                <p className="font-mono text-[10px] text-on-surface-variant">
-                  Select a target device to initiate stream sequence
-                </p>
+              <div className="text-center text-secondary/50 font-mono text-xs py-8">
+                NO ACTIVE STREAMS
               </div>
             ) : (
               transfers.map((transfer) => {
                 const isStreaming = transfer.status === "transferring";
-                const isConnecting = transfer.status === "pending" || transfer.status === "accepted";
-                const isVerifying = transfer.status === "verifying";
-                const isFailed = transfer.status === "failed";
-                const isRejected = transfer.status === "rejected";
-                const isComplete = transfer.status === "complete";
-                const isError = isFailed || isRejected;
-
                 return (
-                  <div
-                    key={transfer.transferId}
-                    className={`border p-6 transition-colors ${
-                      isError ? "border-primary bg-primary/5" :
-                      isComplete ? "border-primary bg-primary/5" :
-                      isStreaming ? "border-outline bg-surface-container-high" :
-                      "border-outline"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className={`w-10 h-10 border flex items-center justify-center transition-colors ${
-                        isError ? "border-primary text-primary animate-shake" :
-                        isComplete ? "bg-primary border-primary text-white animate-check-pop" :
-                        isConnecting ? "border-outline text-on-surface-variant animate-kinetic-pulse" :
-                        "border-outline text-primary"
-                      }`}>
-                        <span className="material-symbols-outlined text-xl">
-                          {isError ? "close" :
-                           isComplete ? "check" :
-                           isVerifying ? "verified" :
-                           transfer.direction === "send" ? "upload" : "download"}
-                        </span>
+                  <div key={transfer.transferId} className={`space-y-3 ${transfer.status === "failed" ? "opacity-50" : ""}`}>
+                    <div className="flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${transfer.status === "failed" ? "text-red-500" : "text-primary"}`}>{transfer.status}</span>
+                        <span className="text-xs font-bold font-headline text-on-surface truncate max-w-[120px]">{transfer.fileName}</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <p className="font-bold uppercase tracking-tight">{transfer.fileName}</p>
-                          <span className={`font-mono text-[10px] font-bold uppercase tracking-widest ${
-                            isError ? "text-primary" :
-                            isComplete ? "text-primary" :
-                            isStreaming ? "text-on-surface" :
-                            "text-on-surface-variant"
-                          }`}>
-                            {isError ? (isRejected ? "Declined" : "Failed") :
-                             isComplete ? "Complete" :
-                             isStreaming ? `${transfer.progress}%` :
-                             isVerifying ? "Verifying" :
-                             isConnecting ? "Connecting" : transfer.status}
-                          </span>
-                        </div>
-                        <p className="font-mono text-[10px] text-on-surface-variant uppercase">
-                          {transfer.peerName} &bull; {formatBytes(transfer.fileSize)}
-                        </p>
-                      </div>
+                      <span className="text-[10px] font-headline font-bold text-secondary">
+                        {isStreaming && transfer.speed > 0 ? `${formatBytes(transfer.speed)}/s` : ""}
+                      </span>
                     </div>
-                    <ProgressBar progress={transfer.progress} />
-                    {isStreaming && transfer.speed > 0 && (
-                      <div className="flex justify-between mt-3">
-                        <span className="font-mono text-[10px] font-bold uppercase">
-                          {formatBytes(transfer.bytesTransferred)} / {formatBytes(transfer.fileSize)}
-                        </span>
-                        <span className="font-mono text-[10px] font-bold uppercase">
-                          {formatBytes(transfer.speed)}/s &bull; {Math.ceil(transfer.eta)}s
-                        </span>
-                      </div>
-                    )}
-                    {isError && transfer.errorMessage && (
-                      <p className="font-mono text-xs text-primary mt-3">{transfer.errorMessage}</p>
-                    )}
+                    <div className="h-1 w-full bg-surface-container-highest">
+                      <div className={`h-full ${transfer.status === "failed" ? "bg-red-500" : "bg-primary"} transition-all`} style={{ width: `${transfer.progress}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-secondary">
+                      <span>{transfer.progress}%</span>
+                      <span>{formatBytes(transfer.bytesTransferred)} / {formatBytes(transfer.fileSize)}</span>
+                    </div>
                   </div>
                 );
               })
             )}
 
-            {/* Queue more */}
-            <DropZone
-              title="Queue Artifacts"
-              subtitle="Load payload for simultaneous broadcast."
-              icon="add"
-              onFilesSelected={handleQueueFiles}
-            />
-          </div>
-
-          {/* Footer */}
-          <div className="mt-8 md:mt-12 border-t border-outline pt-6 grid grid-cols-2 gap-8 relative z-10">
-            <div>
-              <div className="font-mono text-[10px] text-on-surface-variant uppercase mb-1">Total Velocity</div>
-              <div className="font-mono text-2xl md:text-3xl font-bold tracking-tighter">
-                {totalSpeed() > 0 ? `${formatBytes(totalSpeed())}/S` : "0 B/S"}
+            <div className="mt-8 pt-8 border-t border-surface-container-highest space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Network Load</span>
+                <span className="text-[10px] font-headline text-on-surface">ACTV</span>
+              </div>
+              <div className="grid grid-cols-8 gap-1">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className={`h-4 ${i < (transfers.length > 0 ? 3 : 1) ? "bg-primary animate-pulse" : "bg-surface-container-highest"}`}></div>
+                ))}
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Total Output</span>
+                <span className="text-[10px] font-headline text-primary font-bold">{formatBytes(totalSpeed())}/s</span>
               </div>
             </div>
-            <div>
-              <div className="font-mono text-[10px] text-on-surface-variant uppercase mb-1">Protocol</div>
-              <div className="font-mono text-2xl md:text-3xl font-bold text-primary tracking-tighter">WEBRTC-P2P</div>
-            </div>
           </div>
-        </div>
+        </aside>
+
       </div>
+
+      {/* Peer Picker Modal */}
+      {pendingFiles && (
+        <PeerPicker
+          peers={peers}
+          files={pendingFiles}
+          onSelect={handlePeerSelect}
+          onCancel={() => setPendingFiles(null)}
+        />
+      )}
     </div>
   );
 }

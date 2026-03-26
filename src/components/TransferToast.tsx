@@ -30,7 +30,7 @@ export default function TransferToast({ offer, onDecide }: TransferToastProps) {
     >
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 border border-primary text-primary flex items-center justify-center shrink-0" aria-hidden="true">
-          <span className="material-symbols-outlined text-xl">download</span>
+          <span className="material-symbols-outlined text-xl">{offer.totalFiles && offer.totalFiles > 1 ? "folder_zip" : "download"}</span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-mono text-[10px] text-primary uppercase tracking-[0.2em] mb-1">
@@ -40,7 +40,9 @@ export default function TransferToast({ offer, onDecide }: TransferToastProps) {
             {offer.fileName}
           </p>
           <p className="font-mono text-[10px] text-on-surface-variant mt-1">
-            FROM: {offer.peerName.toUpperCase()} &bull; {formatBytes(offer.fileSize)}
+            FROM: {offer.peerName.toUpperCase()} &bull; {offer.totalFiles && offer.totalFiles > 1
+              ? `${offer.totalFiles} files — ${formatBytes(offer.totalSize || offer.fileSize)}`
+              : formatBytes(offer.fileSize)}
           </p>
         </div>
       </div>

@@ -4,7 +4,6 @@ import { TransferProvider } from "./context/TransferContext";
 import Layout from "./components/Layout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const MyFiles = lazy(() => import("./pages/MyFiles"));
 const Send = lazy(() => import("./pages/Send"));
 const Received = lazy(() => import("./pages/Received"));
 
@@ -22,7 +21,6 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-          <Route path="/files" element={<Suspense fallback={<PageLoader />}><MyFiles /></Suspense>} />
           <Route path="/send" element={<Suspense fallback={<PageLoader />}><Send /></Suspense>} />
           <Route path="/received" element={<Suspense fallback={<PageLoader />}><Received /></Suspense>} />
         </Route>
