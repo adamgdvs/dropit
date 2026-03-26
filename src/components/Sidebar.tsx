@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useDeviceStore } from "../stores/deviceStore";
 import { useFileStore } from "../stores/fileStore";
+import { getDeviceName } from "../services/deviceIdentity";
 
 const navItems = [
   { to: "/", icon: "dashboard", label: "Dashboard" },
@@ -11,7 +12,9 @@ const navItems = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
+  const myName = useDeviceStore((s) => s.myName);
   const receivedCount = useFileStore((s) => s.received.length);
+  const displayName = myName || getDeviceName();
 
   const getBadge = (to: string) => {
     if (to === "/received" && receivedCount > 0) return receivedCount;
@@ -67,7 +70,7 @@ export default function Sidebar() {
                 <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
               </div>
               <div className="overflow-hidden">
-                <p className="text-xs font-bold truncate">Admin_Null</p>
+                <p className="text-xs font-bold truncate">{displayName}</p>
                 <p className={`text-[10px] font-mono tracking-widest ${isConnected ? "text-green-500" : "text-secondary/60"}`}>
                   {isConnected ? "NODE LINKED" : "OFFLINE"}
                 </p>

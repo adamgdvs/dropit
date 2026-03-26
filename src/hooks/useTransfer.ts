@@ -15,6 +15,7 @@ import {
   type TransferDecision,
 } from "../services/transfer";
 import { downloadBlob } from "../services/files";
+import { getDeviceName } from "../services/deviceIdentity";
 import { useDeviceStore, type DeviceInfo } from "../stores/deviceStore";
 import { useTransferStore } from "../stores/transferStore";
 import { useFileStore } from "../stores/fileStore";
@@ -34,7 +35,7 @@ export interface PendingOffer {
 }
 
 export function useTransfer(options: { roomId?: string; deviceName?: string } = {}) {
-  const { roomId = "auto", deviceName } = options;
+  const { roomId = "auto", deviceName = getDeviceName() } = options;
 
   const [pendingOffer, setPendingOffer] = useState<PendingOffer | null>(null);
   const managerRef = useRef<PeerManager | null>(null);
