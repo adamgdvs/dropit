@@ -12,12 +12,16 @@ export default function Dashboard() {
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const activeList = useTransferStore((s) => s.activeList);
   const history = useTransferStore((s) => s.history);
 
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 
   const peers = deviceList();
   const connected = connectedDevices();
+  const activeTransfer = activeList().find(
+    (t) => t.status === "transferring" || t.status === "pending" || t.status === "accepted"
+  );
   const recentTransfers = history.slice(0, 5);
 
   const handleFilesSelected = (files: File[]) => {
@@ -26,7 +30,6 @@ export default function Dashboard() {
     } else if (connected.length > 1) {
       setPendingFiles(files);
     } else {
-      // If offline or no peers, theoretically we prompt or store
       setPendingFiles(files);
     }
   };
@@ -39,148 +42,131 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="pt-12 min-h-screen">
+    <div className="min-h-screen">
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-        
-        {/* Header - Tactical Status */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-surface-container-high pb-4">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-outline pb-4">
           <div>
-            <h1 className="text-3xl font-black font-headline uppercase tracking-tight text-primary">SYS_DASHBOARD</h1>
-            <p className="font-mono text-xs text-secondary/60 mt-1">NODE_OP // v4.2.0-A</p>
+            <h1 className="text-3xl font-black font-headline uppercase tracking-tight text-on-surface">Dashboard</h1>
+            <p className="font-mono text-xs text-on-surface-variant mt-1">
+              {isConnected ? `${connected.length} device${connected.length !== 1 ? "s" : ""} connected` : "Offline"}
+            </p>
           </div>
-          <div className="flex gap-4">
-            <div className="px-3 py-1 bg-surface-container-low border border-outline flex items-center gap-2">
-              <span className={`w-2 h-2 ${isConnected ? "bg-green-500" : "bg-red-500"} animate-pulse`}></span>
-              <span className="font-mono text-[10px] uppercase font-bold text-secondary">
-                {isConnected ? "Connection Secure" : "Signaling Offline"}
+          <div className="flex gap-3">
+            <div className="px-3 py-1 border border-outline flex items-center gap-2">
+              <span className={`w-2 h-2 ${isConnected ? "bg-primary" : "bg-on-surface-variant"}`} />
+              <span className="font-mono text-[10px] uppercase font-bold text-on-surface-variant">
+                {isConnected ? "Online" : "Offline"}
               </span>
-            </div>
-            <div className="px-3 py-1 bg-surface-container-low border border-outline flex items-center gap-2">
-              <span className="material-symbols-outlined text-[14px] text-primary">encrypted</span>
-              <span className="font-mono text-[10px] uppercase font-bold text-secondary">E2E Active</span>
             </div>
           </div>
         </header>
 
-        {/* Dashboard Grid Map */}
+        {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Main Content Area (col 1-2) */}
+          {/* Left: Drop zone + recent transfers */}
           <div className="lg:col-span-2 space-y-6">
-            
-            {/* Storage Metrics Bento */}
-            <section>
-              <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-secondary mb-3">Storage Metrics</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-surface-container-lowest p-4 border border-surface-container-high relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-8 h-8 bg-surface-container flex items-center justify-center text-secondary border-b border-l border-surface-container-high">
-                    <span className="material-symbols-outlined text-sm">hard_drive</span>
-                  </div>
-                  <p className="font-mono text-[10px] text-secondary/60 mb-2 mt-4">CAPACITY</p>
-                  <p className="font-headline font-black text-2xl text-on-surface">74<span className="text-sm text-primary">%</span></p>
-                  <div className="w-full h-1 bg-surface-container-high mt-3"><div className="w-[74%] h-full bg-primary relative"><div className="absolute right-0 top-0 bottom-0 w-1 bg-white opacity-50"></div></div></div>
-                </div>
-                <div className="bg-surface-container-lowest p-4 border border-surface-container-high">
-                  <p className="font-mono text-[10px] text-secondary/60 mb-2">VELOCITY</p>
-                  <p className="font-headline font-black text-2xl text-on-surface">840<span className="text-sm text-secondary">Mbps</span></p>
-                </div>
-                <div className="bg-surface-container-lowest p-4 border border-surface-container-high">
-                  <p className="font-mono text-[10px] text-secondary/60 mb-2">TUNNELS</p>
-                  <p className="font-headline font-black text-2xl text-primary">{connected.length}</p>
-                </div>
-                <div className="bg-surface-container-lowest p-4 border border-surface-container-high">
-                  <p className="font-mono text-[10px] text-secondary/60 mb-2">UPTIME</p>
-                  <p className="font-headline font-black text-xl text-on-surface mt-1">99.9<span className="text-sm text-secondary">%</span></p>
-                </div>
-              </div>
-            </section>
-
-            {/* Quick Drop */}
-            <DropZone 
+            <DropZone
               title="Quick Drop"
               subtitle=""
               variant="primary"
               onFilesSelected={handleFilesSelected}
             />
 
-            {/* Recent Stream */}
-            <section>
-              <div className="flex items-center justify-between mb-4 mt-8">
-                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-secondary">Recent Stream</h2>
-                <button className="text-[10px] font-mono text-primary hover:underline underline-offset-4 uppercase">View Archive →</button>
-              </div>
-              <div className="bg-surface-container-lowest border border-surface-container-high overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-surface-container-high">
-                      <th className="font-mono text-[10px] text-secondary/50 font-normal py-3 px-4 uppercase tracking-widest">Hash / Name</th>
-                      <th className="font-mono text-[10px] text-secondary/50 font-normal py-3 px-4 uppercase tracking-widest">Size</th>
-                      <th className="font-mono text-[10px] text-secondary/50 font-normal py-3 px-4 uppercase tracking-widest">Node Path</th>
-                      <th className="font-mono text-[10px] text-secondary/50 font-normal py-3 px-4 uppercase tracking-widest text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentTransfers.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 px-4 text-center text-sm font-mono text-secondary/40">NO RECENT TRANSFERS EXTRACTED</td>
+            {/* Recent Transfers */}
+            {recentTransfers.length > 0 && (
+              <section>
+                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+                  Recent Transfers
+                </h2>
+                <div className="border border-outline overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-outline">
+                        <th className="font-mono text-[10px] text-on-surface-variant font-normal py-3 px-4 uppercase tracking-widest">File</th>
+                        <th className="font-mono text-[10px] text-on-surface-variant font-normal py-3 px-4 uppercase tracking-widest">Size</th>
+                        <th className="font-mono text-[10px] text-on-surface-variant font-normal py-3 px-4 uppercase tracking-widest">Peer</th>
+                        <th className="font-mono text-[10px] text-on-surface-variant font-normal py-3 px-4 uppercase tracking-widest text-right">Status</th>
                       </tr>
-                    ) : (
-                      recentTransfers.map((t) => (
-                        <tr key={t.transferId} className="border-b border-surface-container-high/50 hover:bg-surface-container-low transition-colors">
+                    </thead>
+                    <tbody>
+                      {recentTransfers.map((t) => (
+                        <tr key={t.transferId} className="border-b border-outline/50 hover:bg-surface-variant/20 transition-colors">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
-                              <span className="material-symbols-outlined text-secondary/50 text-[18px]">draft</span>
-                              <div>
-                                <p className="font-headline text-sm font-bold text-on-surface truncate max-w-[150px]">{t.fileName}</p>
-                                <p className="font-mono text-[9px] text-secondary/40">{(t.transferId || "").substring(0,8)}</p>
-                              </div>
+                              <span className="material-symbols-outlined text-on-surface-variant text-[18px]">draft</span>
+                              <span className="font-headline text-sm font-bold text-on-surface truncate max-w-[200px]">{t.fileName}</span>
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-mono text-xs text-secondary">{formatBytes(t.fileSize)}</td>
-                          <td className="py-3 px-4 font-mono text-[10px] text-primary bg-primary/5 uppercase tracking-wider">{t.peerName}</td>
+                          <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">{formatBytes(t.fileSize)}</td>
+                          <td className="py-3 px-4 font-mono text-[10px] text-primary uppercase tracking-wider">{t.peerName}</td>
                           <td className="py-3 px-4 text-right">
-                            {t.status === "complete" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-green-500 bg-green-500/10 px-2 py-1 uppercase font-bold">
-                                <span className="w-1 h-1 bg-green-500"></span> SECURED
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-red-500 bg-red-500/10 px-2 py-1 uppercase font-bold">
-                                <span className="w-1 h-1 bg-red-500"></span> FAILED
-                              </span>
-                            )}
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono uppercase font-bold px-2 py-1 ${
+                              t.status === "complete"
+                                ? "text-primary bg-primary/10"
+                                : "text-on-surface-variant bg-surface-variant/30"
+                            }`}>
+                              <span className={`w-1 h-1 ${t.status === "complete" ? "bg-primary" : "bg-on-surface-variant"}`} />
+                              {t.status === "complete" ? "DONE" : "FAILED"}
+                            </span>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
           </div>
 
-          {/* Right Sidebar Area (col 3) */}
+          {/* Right: Devices panel */}
           <div className="space-y-6">
-            <section className="bg-surface-container-low border border-surface-container-high p-4 relative corner-marks">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-secondary">Linked Nodes</h2>
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(255,81,58,0.6)]"></div>
+            <section className="border border-outline p-4">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-outline">
+                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant">Devices</h2>
+                <span className={`font-mono text-[10px] font-bold px-2 py-1 ${
+                  connected.length > 0 ? "bg-primary text-white" : "border border-outline text-on-surface-variant"
+                }`}>
+                  {connected.length} LIVE
+                </span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {peers.map((peer) => (
                   <DeviceCard key={peer.id} device={peer as any} onClick={() => {}} />
                 ))}
                 {peers.length === 0 && (
                   <div className="text-center py-8">
-                    <span className="material-symbols-outlined text-3xl text-secondary/30 mb-2">radar</span>
-                    <p className="font-mono text-xs text-secondary/50 uppercase">Scanning Frequencies...</p>
+                    <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">devices</span>
+                    <p className="font-mono text-xs text-on-surface-variant">No devices nearby</p>
+                    <p className="font-mono text-[10px] text-on-surface-variant/60 mt-1">
+                      Use PAIR to connect manually
+                    </p>
                   </div>
                 )}
               </div>
             </section>
           </div>
-
         </div>
       </div>
+
+      {/* Floating transfer status */}
+      {activeTransfer && (
+        <div className="fixed bottom-6 right-6 flex items-center gap-4 px-6 py-4 border bg-surface border-outline z-50 shadow-lg">
+          <span className="material-symbols-outlined animate-spin text-primary">sync</span>
+          <div className="flex flex-col">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              {activeTransfer.direction === "send" ? "Sending" : "Receiving"}
+            </span>
+            <span className="text-sm font-bold truncate max-w-[180px]">{activeTransfer.fileName}</span>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <div className="w-20 h-1 bg-outline overflow-hidden">
+              <div className="h-full bg-primary transition-all" style={{ width: `${activeTransfer.progress}%` }} />
+            </div>
+            <span className="font-mono text-[10px] font-bold text-on-surface-variant">{activeTransfer.progress}%</span>
+          </div>
+        </div>
+      )}
 
       {pendingFiles && (
         <PeerPicker

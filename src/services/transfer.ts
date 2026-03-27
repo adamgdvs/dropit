@@ -288,6 +288,12 @@ export class FileSender {
         } catch { /* ignore non-JSON */ }
       };
       this.channel.addEventListener("message", handler);
+
+      // Timeout after 60s — treat as rejection
+      setTimeout(() => {
+        this.channel.removeEventListener("message", handler);
+        resolve(false);
+      }, 60000);
     });
   }
 

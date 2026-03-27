@@ -27,10 +27,9 @@ export default function Received() {
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-surface-container-highest pb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tighter uppercase text-on-surface">Extracted Artifacts</h1>
-            <p className="text-secondary font-label text-[10px] uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-              SECURE DROPZONE // {received.length} VERIFIED PAYLOADS
+            <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tighter uppercase text-on-surface">Received Files</h1>
+            <p className="text-secondary font-mono text-[10px] uppercase tracking-widest mt-2">
+              {received.length} file{received.length !== 1 ? "s" : ""} received
             </p>
           </div>
           <div className="flex gap-2">
@@ -61,7 +60,7 @@ export default function Received() {
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-xs font-mono text-secondary">
                       <span className="material-symbols-outlined text-4xl mb-2 opacity-50 block mx-auto">inbox</span>
-                      NO INCOMING TELEMETRY
+                      NO FILES RECEIVED YET
                     </td>
                   </tr>
                 ) : (

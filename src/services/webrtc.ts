@@ -37,6 +37,8 @@ export class PeerConnection {
   private pc: RTCPeerConnection;
   private dataChannel: RTCDataChannel | null = null;
   private events: PeerConnectionEvents;
+  private pendingCandidates: RTCIceCandidateInit[] = [];
+  private hasRemoteDescription = false;
   state: ConnectionState = "new";
 
   constructor(events: PeerConnectionEvents) {
@@ -141,6 +143,8 @@ export class PeerConnection {
   async handleOffer(sdp: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit> {
     this.updateState("connecting");
     await this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    this.hasRemoteDescription = true;
+    await this.flushPendingCandidates();
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
     return this.pc.localDescription!.toJSON();
@@ -151,16 +155,36 @@ export class PeerConnection {
    */
   async handleAnswer(sdp: RTCSessionDescriptionInit) {
     await this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    this.hasRemoteDescription = true;
+    await this.flushPendingCandidates();
   }
 
   /**
-   * Add a received ICE candidate.
+   * Add a received ICE candidate. Buffers if remote description isn't set yet.
    */
   async addIceCandidate(candidate: RTCIceCandidateInit) {
+    if (!this.hasRemoteDescription) {
+      this.pendingCandidates.push(candidate);
+      return;
+    }
     try {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (e) {
       console.warn("[WebRTC] Failed to add ICE candidate:", e);
+    }
+  }
+
+  private async flushPendingCandidates() {
+    const candidates = this.pendingCandidates.splice(0);
+    for (const candidate of candidates) {
+      try {
+        await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.warn("[WebRTC] Failed to add buffered ICE candidate:", e);
+      }
+    }
+    if (candidates.length > 0) {
+      console.log(`[WebRTC] Flushed ${candidates.length} buffered ICE candidates`);
     }
   }
 

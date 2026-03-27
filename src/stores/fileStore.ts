@@ -15,6 +15,7 @@ export interface QueuedFile {
   id: string;
   file: File;
   addedAt: number;
+  previewUrl?: string;
 }
 
 interface FileState {
@@ -60,18 +61,28 @@ export const useFileStore = create<FileState>((set) => ({
     set((state) => ({
       queued: [
         ...state.queued,
-        ...files.map((f) => ({
-          id: crypto.randomUUID(),
-          file: f,
-          addedAt: Date.now(),
-        })),
+        ...files.map((f) => {
+          const isMedia = f.type.startsWith("image/") || f.type.startsWith("video/");
+          return {
+            id: crypto.randomUUID(),
+            file: f,
+            addedAt: Date.now(),
+            previewUrl: isMedia ? URL.createObjectURL(f) : undefined,
+          };
+        }),
       ],
     })),
 
   removeQueued: (id) =>
-    set((state) => ({
-      queued: state.queued.filter((f) => f.id !== id),
-    })),
+    set((state) => {
+      const item = state.queued.find((f) => f.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return { queued: state.queued.filter((f) => f.id !== id) };
+    }),
 
-  clearQueued: () => set({ queued: [] }),
+  clearQueued: () => {
+    const { queued } = useFileStore.getState();
+    queued.forEach((f) => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+    set({ queued: [] });
+  },
 }));

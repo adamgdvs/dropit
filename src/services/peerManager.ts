@@ -32,7 +32,9 @@ export class PeerManager {
   private myId: string | null = null;
   private cleanupFns: Array<() => void> = [];
   private peerTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private retryCount = new Map<string, number>();
   private static STALE_PEER_TIMEOUT = 20_000; // 20 seconds
+  private static MAX_RETRIES = 2;
 
   constructor(signalingUrl: string, events: PeerManagerEvents) {
     this.signaling = new SignalingClient(signalingUrl);
@@ -59,9 +61,23 @@ export class PeerManager {
       })
     );
 
-    // Handle room join confirmation
+    // Handle room join confirmation (fires on initial join AND reconnect)
     this.cleanupFns.push(
       this.signaling.on("joined", (data) => {
+        // Clean up stale connections from previous session (reconnect scenario)
+        if (this.connections.size > 0) {
+          console.log(`[PeerManager] Re-join detected, cleaning up ${this.connections.size} stale connections`);
+          for (const [, pc] of this.connections) {
+            pc.close();
+          }
+          this.connections.clear();
+          this.peers.clear();
+          for (const [, timer] of this.peerTimers) {
+            clearTimeout(timer);
+          }
+          this.peerTimers.clear();
+        }
+
         this.myId = data.peerId;
         this.events.onJoined?.(data.peerId, data.name, data.roomId);
         console.log(`[PeerManager] Joined as "${data.name}" (${data.peerId}) in room "${data.roomId}" — ${data.peers.length} existing peer(s)`);
@@ -187,6 +203,7 @@ export class PeerManager {
 
   private removePeer(id: string) {
     this.clearStaleTimer(id);
+    this.retryCount.delete(id);
     this.peers.delete(id);
     const pc = this.connections.get(id);
     if (pc) {
@@ -200,13 +217,58 @@ export class PeerManager {
     const peer = this.peers.get(peerId);
     if (peer) {
       peer.connectionState = state;
-      // Clear stale timer once connected, or restart if still connecting
+
       if (state === "connected") {
         this.clearStaleTimer(peerId);
-      } else if (state === "failed" || state === "disconnected") {
+        this.retryCount.delete(peerId);
+      } else if (state === "failed") {
         this.clearStaleTimer(peerId);
-        // Remove failed/disconnected peers after a short delay
+        // Attempt retry before giving up
+        const retries = this.retryCount.get(peerId) || 0;
+        if (retries < PeerManager.MAX_RETRIES) {
+          this.retryCount.set(peerId, retries + 1);
+          console.log(`[PeerManager] Connection to "${peer.name}" failed, retrying (${retries + 1}/${PeerManager.MAX_RETRIES})...`);
+          // Tear down old connection and retry after a brief delay
+          const oldPc = this.connections.get(peerId);
+          if (oldPc) {
+            oldPc.close();
+            this.connections.delete(peerId);
+          }
+          peer.connectionState = "connecting";
+          this.notifyPeersChanged();
+          setTimeout(() => {
+            if (this.peers.has(peerId)) {
+              this.initiateConnection(peerId);
+              this.startStaleTimer(peerId);
+            }
+          }, 2000);
+          return;
+        }
+        // Max retries exhausted — remove
         setTimeout(() => this.removePeer(peerId), 3000);
+      } else if (state === "disconnected") {
+        this.clearStaleTimer(peerId);
+        // Grace period: transient disconnects recover on their own
+        setTimeout(() => {
+          const currentPeer = this.peers.get(peerId);
+          if (currentPeer && currentPeer.connectionState === "disconnected") {
+            // Still disconnected after grace — try to reconnect
+            const retries = this.retryCount.get(peerId) || 0;
+            if (retries < PeerManager.MAX_RETRIES) {
+              this.retryCount.set(peerId, retries + 1);
+              console.log(`[PeerManager] "${currentPeer.name}" still disconnected, retrying...`);
+              const oldPc = this.connections.get(peerId);
+              if (oldPc) {
+                oldPc.close();
+                this.connections.delete(peerId);
+              }
+              this.initiateConnection(peerId);
+              this.startStaleTimer(peerId);
+            } else {
+              this.removePeer(peerId);
+            }
+          }
+        }, 8000); // 8s grace for transient disconnects
       }
       this.notifyPeersChanged();
     }
@@ -271,6 +333,7 @@ export class PeerManager {
       clearTimeout(timer);
     }
     this.peerTimers.clear();
+    this.retryCount.clear();
     for (const [, pc] of this.connections) {
       pc.close();
     }

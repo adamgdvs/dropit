@@ -75,9 +75,8 @@ export default function Send() {
           <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-surface-container-highest pb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tighter uppercase text-on-surface">Send Files</h1>
-              <p className="text-secondary font-label text-[10px] uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                {nearbyDevices.length} NODE{nearbyDevices.length !== 1 ? "S" : ""} ONLINE // {queued.length} QUEUED
+              <p className="text-secondary font-mono text-[10px] uppercase tracking-widest mt-2">
+                {nearbyDevices.length} device{nearbyDevices.length !== 1 ? "s" : ""} connected &bull; {queued.length} queued
               </p>
             </div>
             <div className="flex gap-2">
@@ -156,9 +155,26 @@ export default function Send() {
                   <tbody className="text-sm">
                     {queued.map((item) => (
                       <tr key={item.id} className="hover:bg-surface-container-highest/50 transition-colors border-b border-surface-container-highest/30">
-                        <td className="px-6 py-4 text-on-surface font-medium flex items-center gap-3">
-                          <span className="material-symbols-outlined text-primary text-lg">{iconForType(item.file.type)}</span>
-                          <span className="truncate max-w-[150px] md:max-w-xs">{item.file.name}</span>
+                        <td className="px-6 py-4 text-on-surface font-medium">
+                          <div className="flex items-center gap-3">
+                            {item.previewUrl && item.file.type.startsWith("image/") ? (
+                              <img
+                                src={item.previewUrl}
+                                alt={item.file.name}
+                                className="w-10 h-10 object-cover border border-surface-container-highest shrink-0"
+                              />
+                            ) : item.previewUrl && item.file.type.startsWith("video/") ? (
+                              <video
+                                src={item.previewUrl}
+                                className="w-10 h-10 object-cover border border-surface-container-highest shrink-0"
+                                muted
+                                preload="metadata"
+                              />
+                            ) : (
+                              <span className="material-symbols-outlined text-primary text-lg w-10 h-10 flex items-center justify-center bg-surface-container-high shrink-0">{iconForType(item.file.type)}</span>
+                            )}
+                            <span className="truncate max-w-[150px] md:max-w-xs">{item.file.name}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-secondary hidden md:table-cell text-xs uppercase font-mono">
                           {item.file.type.split("/")[1] || "FILE"}
@@ -216,21 +232,14 @@ export default function Send() {
               })
             )}
 
-            <div className="mt-8 pt-8 border-t border-surface-container-highest space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Network Load</span>
-                <span className="text-[10px] font-headline text-on-surface">ACTV</span>
+            {transfers.length > 0 && (
+              <div className="mt-8 pt-4 border-t border-surface-container-highest">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Speed</span>
+                  <span className="text-[10px] font-headline text-primary font-bold">{formatBytes(totalSpeed())}/s</span>
+                </div>
               </div>
-              <div className="grid grid-cols-8 gap-1">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className={`h-4 ${i < (transfers.length > 0 ? 3 : 1) ? "bg-primary animate-pulse" : "bg-surface-container-highest"}`}></div>
-                ))}
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Total Output</span>
-                <span className="text-[10px] font-headline text-primary font-bold">{formatBytes(totalSpeed())}/s</span>
-              </div>
-            </div>
+            )}
           </div>
         </aside>
 
