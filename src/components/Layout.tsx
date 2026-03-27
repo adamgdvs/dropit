@@ -32,6 +32,8 @@ export default function Layout() {
       <Sidebar />
       <main className="md:ml-64 min-h-screen pb-20 md:pb-0 relative">
         <TopBar />
+        {/* Spacer to push content below the fixed TopBar */}
+        <div className="h-12" />
         <ConnectionBar />
         <Outlet />
       </main>

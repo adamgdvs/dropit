@@ -8,7 +8,7 @@ import DeviceCard from "../components/DeviceCard";
 import PeerPicker from "../components/PeerPicker";
 
 export default function Dashboard() {
-  const { sendFiles } = useTransferContext();
+  const { sendFiles, joinRoom } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const history = useTransferStore((s) => s.history);
 
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [pairingError, setPairingError] = useState<string | null>(null);
 
   const peers = deviceList();
   const connected = connectedDevices();
@@ -38,6 +40,33 @@ export default function Dashboard() {
     if (pendingFiles) {
       sendFiles(peerId, pendingFiles);
       setPendingFiles(null);
+    }
+  };
+
+  const getSignalHttpUrl = () => {
+    const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
+    return wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+  };
+
+  const handleCreateRoom = async () => {
+    setPairingError(null);
+    try {
+      const res = await fetch(`${getSignalHttpUrl()}/api/room`, { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const code = data.roomCode as string;
+      if (!code) throw new Error("No code returned");
+      joinRoom(code);
+    } catch (err) {
+      setPairingError(err instanceof Error ? err.message : "Failed to create room");
+    }
+  };
+
+  const handleJoinRoom = () => {
+    const code = joinCode.trim().toUpperCase();
+    if (code) {
+      joinRoom(code);
+      setJoinCode("");
     }
   };
 
@@ -135,12 +164,40 @@ export default function Dashboard() {
                   <DeviceCard key={peer.id} device={peer as any} onClick={() => {}} />
                 ))}
                 {peers.length === 0 && (
-                  <div className="text-center py-8">
-                    <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">devices</span>
+                  <div className="text-center py-6 space-y-4">
+                    <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 block">devices</span>
                     <p className="font-mono text-xs text-on-surface-variant">No devices nearby</p>
-                    <p className="font-mono text-[10px] text-on-surface-variant/60 mt-1">
-                      Use PAIR to connect manually
-                    </p>
+
+                    {/* Inline pairing controls */}
+                    <div className="space-y-3 pt-2 border-t border-outline mt-4">
+                      <p className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-wider">Connect manually</p>
+                      <button
+                        onClick={handleCreateRoom}
+                        className="w-full bg-primary text-white py-2.5 font-headline text-xs font-bold uppercase tracking-widest hover:opacity-80 active:scale-95 transition-all"
+                      >
+                        Create Room Code
+                      </button>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={joinCode}
+                          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                          onKeyDown={(e) => e.key === "Enter" && handleJoinRoom()}
+                          placeholder="ENTER CODE"
+                          className="flex-1 bg-background border border-outline px-3 py-2 font-mono text-xs uppercase tracking-wider placeholder:text-on-surface-variant/40 focus:border-primary focus:outline-none transition-colors"
+                        />
+                        <button
+                          onClick={handleJoinRoom}
+                          disabled={!joinCode.trim()}
+                          className="px-4 py-2 bg-on-surface text-background font-mono text-[10px] uppercase hover:bg-primary transition-colors disabled:opacity-50"
+                        >
+                          Join
+                        </button>
+                      </div>
+                      {pairingError && (
+                        <p className="font-mono text-[10px] text-primary">{pairingError}</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
