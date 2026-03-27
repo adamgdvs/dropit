@@ -29,6 +29,43 @@ function detectDeviceType(): string {
   return "desktop";
 }
 
+/**
+ * Detect local network subnet via WebRTC ICE candidates.
+ * Returns the /24 subnet (e.g., "192.168.1") or null.
+ * Devices on the same WiFi share a subnet — this helps auto-discovery
+ * when public IPs differ through proxy/NAT.
+ */
+async function detectLocalSubnet(): Promise<string | null> {
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel("");
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => { pc.close(); resolve(null); }, 3000);
+
+      pc.onicecandidate = (e) => {
+        if (!e.candidate?.candidate) return;
+        // Match IPv4 addresses from ICE candidate string
+        const match = e.candidate.candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}/);
+        if (match) {
+          const subnet = match[1];
+          // Only use private/local subnets (192.168.x, 10.x, 172.16-31.x)
+          if (subnet.startsWith("192.168.") || subnet.startsWith("10.") ||
+              /^172\.(1[6-9]|2\d|3[01])\./.test(subnet)) {
+            clearTimeout(timeout);
+            pc.close();
+            resolve(subnet);
+          }
+        }
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
 export interface PendingOffer {
   offer: IncomingTransfer;
   decide: TransferDecision;
@@ -125,7 +162,14 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
     });
 
     managerRef.current = manager;
-    manager.connect(roomId, detectDeviceType(), deviceName);
+
+    // Detect local subnet and connect — subnet helps auto-group same-WiFi devices
+    detectLocalSubnet().then((subnet) => {
+      if (subnet) {
+        console.log(`[Transfer] Detected local subnet: ${subnet}`);
+      }
+      manager.connect(roomId, detectDeviceType(), deviceName, subnet || undefined);
+    });
 
     return () => {
       console.log(`[Transfer] Cleaning up room: "${roomId}"`);

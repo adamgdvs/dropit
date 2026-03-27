@@ -44,13 +44,13 @@ export class PeerManager {
   /**
    * Connect to signaling server and join a room.
    */
-  connect(roomId: string = "default", deviceType: string = "desktop", name?: string) {
+  connect(roomId: string = "default", deviceType: string = "desktop", name?: string, subnet?: string) {
     this.signaling.connect();
 
     // When connected to signaling, join the room
     this.cleanupFns.push(
       this.signaling.on("connected", () => {
-        this.signaling.join(roomId, deviceType, name);
+        this.signaling.join(roomId, deviceType, name, subnet);
         this.events.onConnectionStateChanged(true);
       })
     );

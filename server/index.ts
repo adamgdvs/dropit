@@ -51,7 +51,7 @@ interface Peer {
 }
 
 type SignalMessage =
-  | { type: "join"; roomId?: string; deviceType?: string; name?: string }
+  | { type: "join"; roomId?: string; deviceType?: string; name?: string; subnet?: string }
   | { type: "offer"; targetId: string; sdp: RTCSessionDescriptionInit }
   | { type: "answer"; targetId: string; sdp: RTCSessionDescriptionInit }
   | { type: "ice-candidate"; targetId: string; candidate: RTCIceCandidateInit }
@@ -62,6 +62,8 @@ const rooms = new Map<string, Map<string, Peer>>();
 const peersByWs = new WeakMap<WebSocket, Peer>();
 // Track IP → auto-room mapping so same-network devices share a room
 const ipRooms = new Map<string, string>();
+// Track subnet → auto-room mapping (fallback when public IPs differ)
+const subnetRooms = new Map<string, string>();
 
 // --- Helpers ---
 function send(ws: WebSocket, data: Record<string, unknown>) {
@@ -215,14 +217,30 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       case "join": {
         removePeer(ws);
 
-        // Determine room: explicit room code, or auto-room by IP
+        // Determine room: explicit room code, or auto-room by IP/subnet
         let roomId: string;
         if (msg.roomId && msg.roomId !== "auto") {
           // Explicit room code — use as-is
           roomId = msg.roomId;
         } else {
-          // Auto-discover by IP
+          // First try IP-based auto-room
           roomId = getAutoRoomId(clientIp);
+
+          // If this is a new room and a subnet was provided, check if
+          // another device on the same local subnet already has an auto-room.
+          // This handles the case where Railway sees different public IPs for
+          // devices that are actually on the same WiFi.
+          if (msg.subnet) {
+            const existingSubnetRoom = subnetRooms.get(msg.subnet);
+            if (existingSubnetRoom && rooms.has(existingSubnetRoom) && rooms.get(existingSubnetRoom)!.size > 0) {
+              // Another device with the same subnet is already in a room — join it
+              console.log(`[~] Subnet match: ${msg.subnet} → joining existing room "${existingSubnetRoom}" instead of "${roomId}"`);
+              roomId = existingSubnetRoom;
+            } else {
+              // Register this subnet → room mapping
+              subnetRooms.set(msg.subnet, roomId);
+            }
+          }
         }
 
         const peer: Peer = {

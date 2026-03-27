@@ -100,8 +100,8 @@ export class SignalingClient {
     }
   }
 
-  join(roomId: string, deviceType: string, name?: string) {
-    this.send({ type: "join", roomId, deviceType, name });
+  join(roomId: string, deviceType: string, name?: string, subnet?: string) {
+    this.send({ type: "join", roomId, deviceType, name, subnet });
   }
 
   sendOffer(targetId: string, sdp: RTCSessionDescriptionInit) {

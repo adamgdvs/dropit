@@ -86,25 +86,44 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile Bottom NavBar matching Stitch 2 */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-surface-container-low flex justify-around items-center py-3 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.5)]">
-        <NavLink to="/" end className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? "text-primary" : "text-gray-400"}`}>
-          <span className="material-symbols-outlined">dashboard</span>
-          <span className="text-[10px] font-headline uppercase font-bold">Dash</span>
-        </NavLink>
-        <div className="relative -top-4">
-          <button onClick={() => navigate("/send")} className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/20 active:scale-95 transition-transform">
-            <span className="material-symbols-outlined text-3xl">add</span>
+      {/* Mobile Bottom NavBar — clean 4-tab layout */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-surface-container-low border-t border-surface-container-high z-50">
+        <div className="flex justify-around items-stretch">
+          <NavLink to="/" end className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+            {({ isActive }) => (
+              <>
+                {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
+                <span className="material-symbols-outlined text-[22px]">dashboard</span>
+                <span className="text-[9px] font-headline uppercase font-bold tracking-wider">Dash</span>
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/send" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+            {({ isActive }) => (
+              <>
+                {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
+                <span className="material-symbols-outlined text-[22px]">send</span>
+                <span className="text-[9px] font-headline uppercase font-bold tracking-wider">Send</span>
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/received" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors relative ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+            {({ isActive }) => (
+              <>
+                {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
+                <span className="material-symbols-outlined text-[22px]">move_to_inbox</span>
+                <span className="text-[9px] font-headline uppercase font-bold tracking-wider">Inbox</span>
+                {receivedCount > 0 && (
+                  <span className="absolute top-2 right-1/4 w-4 h-4 bg-primary text-white text-[8px] font-bold flex items-center justify-center rounded-full">{receivedCount > 9 ? "9+" : receivedCount}</span>
+                )}
+              </>
+            )}
+          </NavLink>
+          <button onClick={() => navigate("/send")} className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[22px]">settings</span>
+            <span className="text-[9px] font-headline uppercase font-bold tracking-wider">Settings</span>
           </button>
         </div>
-        <NavLink to="/received" className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? "text-primary" : "text-gray-400"}`}>
-          <span className="material-symbols-outlined">move_to_inbox</span>
-          <span className="text-[10px] font-headline uppercase">Inbox</span>
-        </NavLink>
-        <button className="flex flex-col items-center gap-1 text-gray-400">
-          <span className="material-symbols-outlined">settings</span>
-          <span className="text-[10px] font-headline uppercase">Settings</span>
-        </button>
       </nav>
     </>
   );
