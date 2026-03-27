@@ -89,7 +89,7 @@ export default function Sidebar() {
       {/* Mobile Bottom NavBar — clean 4-tab layout */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-surface-container-low border-t border-surface-container-high z-50">
         <div className="flex justify-around items-stretch">
-          <NavLink to="/" end className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+          <NavLink to="/" end aria-label="Dashboard" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
             {({ isActive }) => (
               <>
                 {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
@@ -98,7 +98,7 @@ export default function Sidebar() {
               </>
             )}
           </NavLink>
-          <NavLink to="/send" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+          <NavLink to="/send" aria-label="Send files" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] transition-colors ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
             {({ isActive }) => (
               <>
                 {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
@@ -107,7 +107,7 @@ export default function Sidebar() {
               </>
             )}
           </NavLink>
-          <NavLink to="/received" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors relative ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
+          <NavLink to="/received" aria-label="Received files" className={({ isActive }) => `flex-1 flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] transition-colors relative ${isActive ? "text-primary" : "text-on-surface-variant"}`}>
             {({ isActive }) => (
               <>
                 {isActive && <span className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />}
@@ -119,7 +119,7 @@ export default function Sidebar() {
               </>
             )}
           </NavLink>
-          <button onClick={() => navigate("/send")} className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-on-surface-variant">
+          <button onClick={() => navigate("/send")} aria-label="Settings" className="flex-1 flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] text-on-surface-variant">
             <span className="material-symbols-outlined text-[22px]">settings</span>
             <span className="text-[9px] font-headline uppercase font-bold tracking-wider">Settings</span>
           </button>

@@ -139,7 +139,9 @@ export default function ConnectionBar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowPairing(!showPairing)}
-            className={`font-mono text-[10px] border px-3 py-1.5 transition-colors ${
+            aria-expanded={showPairing}
+            aria-label={showPairing ? "Close pairing panel" : "Open pairing panel"}
+            className={`font-mono text-[10px] border px-3 py-1.5 min-h-[44px] min-w-[44px] transition-colors ${
               showPairing
                 ? "border-primary text-primary"
                 : "border-outline text-on-surface-variant hover:border-primary hover:text-primary"

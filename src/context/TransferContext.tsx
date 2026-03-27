@@ -1,11 +1,15 @@
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTransfer, type PendingOffer } from "../hooks/useTransfer";
+import type { TextShareMessage } from "../services/transfer";
 
 interface TransferContextValue {
   pendingOffer: PendingOffer | null;
+  receivedText: TextShareMessage | null;
   sendFiles: (peerId: string, files: File[]) => Promise<void>;
+  sendText: (peerId: string, text: string) => void;
   respondToOffer: (accept: boolean) => void;
+  dismissReceivedText: () => void;
   joinRoom: (roomId: string) => void;
 }
 
@@ -15,7 +19,7 @@ export function TransferProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const roomFromUrl = searchParams.get("room") || undefined;
 
-  const { pendingOffer, sendFiles, respondToOffer } = useTransfer({
+  const { pendingOffer, receivedText, sendFiles, sendText, respondToOffer, dismissReceivedText } = useTransfer({
     roomId: roomFromUrl,
   });
 
@@ -35,7 +39,7 @@ export function TransferProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <TransferContext.Provider value={{ pendingOffer, sendFiles, respondToOffer, joinRoom }}>
+    <TransferContext.Provider value={{ pendingOffer, receivedText, sendFiles, sendText, respondToOffer, dismissReceivedText, joinRoom }}>
       {children}
     </TransferContext.Provider>
   );

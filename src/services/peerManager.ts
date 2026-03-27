@@ -82,11 +82,14 @@ export class PeerManager {
         this.events.onJoined?.(data.peerId, data.name, data.roomId);
         console.log(`[PeerManager] Joined as "${data.name}" (${data.peerId}) in room "${data.roomId}" — ${data.peers.length} existing peer(s)`);
 
-        // Register existing peers
+        // Register existing peers and initiate connections using ID-based caller logic
         for (const peer of data.peers) {
           this.addPeer(peer.id, peer.name, peer.deviceType);
-          // Initiate WebRTC connection to each existing peer (we're the caller)
-          this.initiateConnection(peer.id);
+          // Use ID comparison: higher ID = caller. This ensures exactly one side
+          // creates the offer even if both peers process join events simultaneously.
+          if (this.myId && this.myId > peer.id) {
+            this.initiateConnection(peer.id);
+          }
         }
       })
     );
@@ -95,8 +98,27 @@ export class PeerManager {
     this.cleanupFns.push(
       this.signaling.on("peer-joined", (data) => {
         console.log(`[PeerManager] Peer joined: "${data.name}" (${data.peerId})`);
+
+        // If we already know this peer (reconnect scenario), tear down stale connection first
+        if (this.peers.has(data.peerId) || this.connections.has(data.peerId)) {
+          console.log(`[PeerManager] Peer "${data.name}" already known — cleaning up stale connection`);
+          const oldPc = this.connections.get(data.peerId);
+          if (oldPc) {
+            oldPc.close();
+            this.connections.delete(data.peerId);
+          }
+          this.clearStaleTimer(data.peerId);
+          this.retryCount.delete(data.peerId);
+        }
+
         this.addPeer(data.peerId, data.name, data.deviceType);
-        // Don't initiate connection — the new peer will do it (they got our info in "joined")
+
+        // Both sides initiate connections now. Use ID comparison to determine
+        // who creates the offer (higher ID = caller) to avoid duplicate offers.
+        if (this.myId && this.myId > data.peerId) {
+          console.log(`[PeerManager] Initiating connection to new peer "${data.name}" (we are caller)`);
+          this.initiateConnection(data.peerId);
+        }
       })
     );
 

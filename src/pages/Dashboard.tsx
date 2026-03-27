@@ -4,11 +4,12 @@ import { useDeviceStore } from "../stores/deviceStore";
 import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
 import DropZone from "../components/DropZone";
+import TextShare from "../components/TextShare";
 import DeviceCard from "../components/DeviceCard";
 import PeerPicker from "../components/PeerPicker";
 
 export default function Dashboard() {
-  const { sendFiles, joinRoom } = useTransferContext();
+  const { sendFiles, sendText, joinRoom } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
@@ -40,6 +41,17 @@ export default function Dashboard() {
     if (pendingFiles) {
       sendFiles(peerId, pendingFiles);
       setPendingFiles(null);
+    }
+  };
+
+  const handleSendText = (text: string) => {
+    if (connected.length === 1) {
+      sendText(connected[0].id, text);
+    } else if (connected.length > 1) {
+      // Send to all connected peers
+      for (const peer of connected) {
+        sendText(peer.id, text);
+      }
     }
   };
 
@@ -100,6 +112,11 @@ export default function Dashboard() {
               subtitle=""
               variant="primary"
               onFilesSelected={handleFilesSelected}
+            />
+
+            <TextShare
+              onSend={handleSendText}
+              disabled={connected.length === 0}
             />
 
             {/* Recent Transfers */}

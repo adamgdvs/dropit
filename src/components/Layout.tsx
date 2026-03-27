@@ -4,11 +4,12 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import ConnectionBar from "./ConnectionBar";
 import TransferToast from "./TransferToast";
+import TextToast from "./TextToast";
 import { useTransferContext } from "../context/TransferContext";
 import { useTransferStore } from "../stores/transferStore";
 
 export default function Layout() {
-  const { pendingOffer, respondToOffer } = useTransferContext();
+  const { pendingOffer, respondToOffer, receivedText, dismissReceivedText } = useTransferContext();
   const history = useTransferStore((s) => s.history);
   const [liveMessage, setLiveMessage] = useState("");
 
@@ -42,6 +43,13 @@ export default function Layout() {
         <TransferToast
           offer={pendingOffer.offer}
           onDecide={respondToOffer}
+        />
+      )}
+
+      {receivedText && !pendingOffer && (
+        <TextToast
+          message={receivedText}
+          onDismiss={dismissReceivedText}
         />
       )}
 

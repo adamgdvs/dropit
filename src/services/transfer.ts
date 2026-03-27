@@ -61,6 +61,15 @@ interface HashVerifyMessage {
   valid: boolean;
 }
 
+export interface TextShareMessage {
+  type: "text-share";
+  id: string;
+  text: string;
+  senderName: string;
+  isUrl: boolean;
+  timestamp: number;
+}
+
 export type TransferMessage =
   | FileOfferMessage
   | FileResponseMessage
@@ -68,7 +77,8 @@ export type TransferMessage =
   | BundleResponseMessage
   | ChunkMessage
   | TransferCompleteMessage
-  | HashVerifyMessage;
+  | HashVerifyMessage
+  | TextShareMessage;
 
 // --- Transfer State ---
 
@@ -398,6 +408,9 @@ export class FileReceiver {
       case "transfer-complete":
         this.handleComplete(msg, peerId, peerName);
         break;
+      case "text-share":
+        this.onTextReceived?.(msg as TextShareMessage);
+        break;
     }
   }
 
@@ -577,6 +590,8 @@ export class FileReceiver {
 
   // Callback set externally for completed file delivery
   onFileReceived: ((blob: Blob, fileName: string) => void) | null = null;
+  // Callback for received text/URL shares
+  onTextReceived: ((msg: TextShareMessage) => void) | null = null;
 
   destroy() {
     if (this.messageHandler) {

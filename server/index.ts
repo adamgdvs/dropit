@@ -94,15 +94,27 @@ function removePeer(ws: WebSocket) {
       peerId: peer.id,
       name: peer.name,
     });
+    // Keep empty rooms and IP/subnet mappings alive for 60s so reconnecting
+    // peers rejoin the same room instead of getting split into a new one.
     if (room.size === 0) {
-      rooms.delete(peer.roomId);
-      // Clean up IP→room mapping if this was an auto-room
-      for (const [ip, rid] of ipRooms) {
-        if (rid === peer.roomId) {
-          ipRooms.delete(ip);
-          break;
+      setTimeout(() => {
+        const r = rooms.get(peer.roomId);
+        if (r && r.size === 0) {
+          rooms.delete(peer.roomId);
+          for (const [ip, rid] of ipRooms) {
+            if (rid === peer.roomId) {
+              ipRooms.delete(ip);
+              break;
+            }
+          }
+          for (const [subnet, rid] of subnetRooms) {
+            if (rid === peer.roomId) {
+              subnetRooms.delete(subnet);
+              break;
+            }
+          }
         }
-      }
+      }, 60_000);
     }
   }
   peersByWs.delete(ws);
@@ -232,8 +244,8 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           // devices that are actually on the same WiFi.
           if (msg.subnet) {
             const existingSubnetRoom = subnetRooms.get(msg.subnet);
-            if (existingSubnetRoom && rooms.has(existingSubnetRoom) && rooms.get(existingSubnetRoom)!.size > 0) {
-              // Another device with the same subnet is already in a room — join it
+            if (existingSubnetRoom && rooms.has(existingSubnetRoom)) {
+              // Another device with the same subnet has a room (may be empty during grace period) — join it
               console.log(`[~] Subnet match: ${msg.subnet} → joining existing room "${existingSubnetRoom}" instead of "${roomId}"`);
               roomId = existingSubnetRoom;
             } else {

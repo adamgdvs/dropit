@@ -24,19 +24,20 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={cycleTheme}
-          className="p-2 text-gray-400 hover:text-primary transition-colors duration-200"
+          className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-primary transition-colors duration-200"
           title={`Theme: ${theme}`}
+          aria-label={`Switch theme, current: ${theme}`}
         >
           <span className="material-symbols-outlined">{themeIcon}</span>
         </button>
         
         <div className="h-6 w-px bg-surface-container-highest mx-2 hidden md:block"></div>
         
-        <button 
-          onClick={() => navigate("/send")} 
-          className="hidden lg:block bg-transparent border border-primary/30 text-primary px-4 py-1.5 font-headline text-xs font-bold uppercase tracking-tighter hover:bg-primary/10 transition-all"
+        <button
+          onClick={() => navigate("/send")}
+          className="hidden lg:block bg-transparent border border-primary/30 text-primary px-4 py-2.5 min-h-[44px] font-headline text-xs font-bold uppercase tracking-tighter hover:bg-primary/10 transition-all"
         >
           New Transfer
         </button>

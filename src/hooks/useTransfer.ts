@@ -13,6 +13,7 @@ import {
   FileReceiver,
   type IncomingTransfer,
   type TransferDecision,
+  type TextShareMessage,
 } from "../services/transfer";
 import { downloadBlob } from "../services/files";
 import { getDeviceName } from "../services/deviceIdentity";
@@ -75,6 +76,7 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
   const { roomId = "auto", deviceName = getDeviceName() } = options;
 
   const [pendingOffer, setPendingOffer] = useState<PendingOffer | null>(null);
+  const [receivedText, setReceivedText] = useState<TextShareMessage | null>(null);
   const managerRef = useRef<PeerManager | null>(null);
   const receiversRef = useRef<Map<string, FileReceiver>>(new Map());
 
@@ -114,6 +116,11 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         (progress) => storeActionsRef.current.updateTransfer(progress),
         (offer, decide) => pendingOfferRef.current({ offer, decide })
       );
+
+      receiver.onTextReceived = (msg) => {
+        console.log(`[Transfer] Text received from ${msg.senderName}: "${msg.text.substring(0, 50)}..."`);
+        setReceivedText(msg);
+      };
 
       receiver.onFileReceived = (blob, fileName) => {
         console.log(`[Transfer] File received: ${fileName} (${blob.size} bytes)`);
@@ -267,6 +274,34 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
     [updateTransfer]
   );
 
+  const sendText = useCallback(
+    (peerId: string, text: string) => {
+      const channel = managerRef.current?.getDataChannel(peerId);
+      if (!channel || channel.readyState !== "open") {
+        console.error(`[Transfer] No open channel to peer ${peerId}`);
+        return;
+      }
+
+      const myName = useDeviceStore.getState().myName || "Unknown";
+      const isUrl = /^https?:\/\/\S+$/i.test(text.trim());
+      const msg: TextShareMessage = {
+        type: "text-share",
+        id: crypto.randomUUID(),
+        text: text.trim(),
+        senderName: myName,
+        isUrl,
+        timestamp: Date.now(),
+      };
+      channel.send(JSON.stringify(msg));
+      console.log(`[Transfer] Sent text to ${peerId}: "${text.substring(0, 50)}..."`);
+    },
+    []
+  );
+
+  const dismissReceivedText = useCallback(() => {
+    setReceivedText(null);
+  }, []);
+
   const respondToOffer = useCallback(
     (accept: boolean) => {
       if (pendingOffer) {
@@ -279,7 +314,10 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
 
   return {
     pendingOffer,
+    receivedText,
     sendFiles,
+    sendText,
     respondToOffer,
+    dismissReceivedText,
   };
 }

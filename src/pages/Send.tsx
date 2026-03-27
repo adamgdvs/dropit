@@ -4,11 +4,12 @@ import { useFileStore } from "../stores/fileStore";
 import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
 import DropZone from "../components/DropZone";
+import TextShare from "../components/TextShare";
 import PeerPicker from "../components/PeerPicker";
 import { useState } from "react";
 
 export default function Send() {
-  const { sendFiles } = useTransferContext();
+  const { sendFiles, sendText } = useTransferContext();
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
   const queued = useFileStore((s) => s.queued);
@@ -52,6 +53,18 @@ export default function Send() {
       sendFiles(peerId, pendingFiles);
       clearQueued();
       setPendingFiles(null);
+    }
+  };
+
+  const handleSendText = (text: string) => {
+    if (selectedPeer) {
+      sendText(selectedPeer, text);
+    } else if (connected.length === 1) {
+      sendText(connected[0].id, text);
+    } else if (connected.length > 1) {
+      for (const peer of connected) {
+        sendText(peer.id, text);
+      }
     }
   };
 
@@ -137,6 +150,12 @@ export default function Send() {
             title="Drop Files Here"
             subtitle="Files will be added to the queue below"
             onFilesSelected={handleAddFiles}
+          />
+
+          {/* Text/URL Share */}
+          <TextShare
+            onSend={handleSendText}
+            disabled={connected.length === 0}
           />
 
           {/* Queued Files Table */}
