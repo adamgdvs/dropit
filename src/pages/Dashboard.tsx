@@ -4,12 +4,11 @@ import { useDeviceStore } from "../stores/deviceStore";
 import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
 import DropZone from "../components/DropZone";
-import TextShare from "../components/TextShare";
 import DeviceCard from "../components/DeviceCard";
 import PeerPicker from "../components/PeerPicker";
 
 export default function Dashboard() {
-  const { sendFiles, sendText, joinRoom } = useTransferContext();
+  const { sendFiles, joinRoom } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
@@ -44,17 +43,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleSendText = (text: string) => {
-    if (connected.length === 1) {
-      sendText(connected[0].id, text);
-    } else if (connected.length > 1) {
-      // Send to all connected peers
-      for (const peer of connected) {
-        sendText(peer.id, text);
-      }
-    }
-  };
-
   const getSignalHttpUrl = () => {
     const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
     return wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
@@ -86,21 +74,11 @@ export default function Dashboard() {
     <div className="min-h-screen">
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-outline pb-4">
-          <div>
-            <h1 className="text-3xl font-black font-headline uppercase tracking-tight text-on-surface">Dashboard</h1>
-            <p className="font-mono text-xs text-on-surface-variant mt-1">
-              {isConnected ? `${connected.length} device${connected.length !== 1 ? "s" : ""} connected` : "Offline"}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <div className="px-3 py-1 border border-outline flex items-center gap-2">
-              <span className={`w-2 h-2 ${isConnected ? "bg-primary" : "bg-on-surface-variant"}`} />
-              <span className="font-mono text-[10px] uppercase font-bold text-on-surface-variant">
-                {isConnected ? "Online" : "Offline"}
-              </span>
-            </div>
-          </div>
+        <header className="border-b border-outline pb-4">
+          <h1 className="text-3xl font-black font-headline uppercase tracking-tight text-on-surface">Dashboard</h1>
+          <p className="font-mono text-xs text-on-surface-variant mt-1">
+            {isConnected ? `${connected.length} device${connected.length !== 1 ? "s" : ""} connected` : "Offline"}
+          </p>
         </header>
 
         {/* Main Grid */}
@@ -112,11 +90,6 @@ export default function Dashboard() {
               subtitle=""
               variant="primary"
               onFilesSelected={handleFilesSelected}
-            />
-
-            <TextShare
-              onSend={handleSendText}
-              disabled={connected.length === 0}
             />
 
             {/* Recent Transfers */}
@@ -153,7 +126,7 @@ export default function Dashboard() {
                                 : "text-on-surface-variant bg-surface-variant/30"
                             }`}>
                               <span className={`w-1 h-1 ${t.status === "complete" ? "bg-primary" : "bg-on-surface-variant"}`} />
-                              {t.status === "complete" ? "DONE" : "FAILED"}
+                              {t.status === "complete" ? "Done" : "Failed"}
                             </span>
                           </td>
                         </tr>
@@ -173,7 +146,7 @@ export default function Dashboard() {
                 <span className={`font-mono text-[10px] font-bold px-2 py-1 ${
                   connected.length > 0 ? "bg-primary text-white" : "border border-outline text-on-surface-variant"
                 }`}>
-                  {connected.length} LIVE
+                  {connected.length} Connected
                 </span>
               </div>
               <div className="space-y-2">
@@ -190,7 +163,7 @@ export default function Dashboard() {
                       <p className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-wider">Connect manually</p>
                       <button
                         onClick={handleCreateRoom}
-                        className="w-full bg-primary text-white py-2.5 font-headline text-xs font-bold uppercase tracking-widest hover:opacity-80 active:scale-95 transition-all"
+                        className="w-full bg-primary text-white py-2.5 min-h-[44px] font-headline text-xs font-bold uppercase tracking-widest hover:opacity-80 active:scale-95 transition-all"
                       >
                         Create Room Code
                       </button>
@@ -201,12 +174,12 @@ export default function Dashboard() {
                           onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                           onKeyDown={(e) => e.key === "Enter" && handleJoinRoom()}
                           placeholder="ENTER CODE"
-                          className="flex-1 bg-background border border-outline px-3 py-2 font-mono text-xs uppercase tracking-wider placeholder:text-on-surface-variant/40 focus:border-primary focus:outline-none transition-colors"
+                          className="flex-1 bg-background border border-outline px-3 py-2 min-h-[44px] font-mono text-xs uppercase tracking-wider placeholder:text-on-surface-variant/40 focus:border-primary focus:outline-none transition-colors"
                         />
                         <button
                           onClick={handleJoinRoom}
                           disabled={!joinCode.trim()}
-                          className="px-4 py-2 bg-on-surface text-background font-mono text-[10px] uppercase hover:bg-primary transition-colors disabled:opacity-50"
+                          className="px-4 py-2 min-h-[44px] bg-on-surface text-background font-mono text-[10px] uppercase hover:bg-primary transition-colors disabled:opacity-50"
                         >
                           Join
                         </button>

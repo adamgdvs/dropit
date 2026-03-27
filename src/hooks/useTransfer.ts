@@ -3,7 +3,11 @@
  *
  * Initializes PeerManager and syncs all state into Zustand stores.
  * Manages incoming offer queue and file send/receive orchestration.
- * Supports dynamic room switching for pairing.
+ *
+ * IMPORTANT: Room state is managed internally via useState, NOT derived
+ * from URL search params. This prevents navigation between pages from
+ * tearing down the PeerManager and losing connections. Only explicit
+ * calls to switchRoom() change the active room.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -13,7 +17,6 @@ import {
   FileReceiver,
   type IncomingTransfer,
   type TransferDecision,
-  type TextShareMessage,
 } from "../services/transfer";
 import { downloadBlob } from "../services/files";
 import { getDeviceName } from "../services/deviceIdentity";
@@ -33,8 +36,6 @@ function detectDeviceType(): string {
 /**
  * Detect local network subnet via WebRTC ICE candidates.
  * Returns the /24 subnet (e.g., "192.168.1") or null.
- * Devices on the same WiFi share a subnet — this helps auto-discovery
- * when public IPs differ through proxy/NAT.
  */
 async function detectLocalSubnet(): Promise<string | null> {
   try {
@@ -48,11 +49,9 @@ async function detectLocalSubnet(): Promise<string | null> {
 
       pc.onicecandidate = (e) => {
         if (!e.candidate?.candidate) return;
-        // Match IPv4 addresses from ICE candidate string
         const match = e.candidate.candidate.match(/(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}/);
         if (match) {
           const subnet = match[1];
-          // Only use private/local subnets (192.168.x, 10.x, 172.16-31.x)
           if (subnet.startsWith("192.168.") || subnet.startsWith("10.") ||
               /^172\.(1[6-9]|2\d|3[01])\./.test(subnet)) {
             clearTimeout(timeout);
@@ -73,10 +72,11 @@ export interface PendingOffer {
 }
 
 export function useTransfer(options: { roomId?: string; deviceName?: string } = {}) {
-  const { roomId = "auto", deviceName = getDeviceName() } = options;
+  const { deviceName = getDeviceName() } = options;
 
+  // Room state is internal — only changes via switchRoom(), not URL navigation
+  const [currentRoomId, setCurrentRoomId] = useState(options.roomId || "auto");
   const [pendingOffer, setPendingOffer] = useState<PendingOffer | null>(null);
-  const [receivedText, setReceivedText] = useState<TextShareMessage | null>(null);
   const managerRef = useRef<PeerManager | null>(null);
   const receiversRef = useRef<Map<string, FileReceiver>>(new Map());
 
@@ -93,9 +93,9 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
   const pendingOfferRef = useRef(setPendingOffer);
   pendingOfferRef.current = setPendingOffer;
 
-  // Connect on mount and when roomId changes — stable effect, no dependency churn
+  // Connect on mount and when currentRoomId changes (only via explicit switchRoom)
   useEffect(() => {
-    console.log(`[Transfer] Connecting to room: "${roomId}"`);
+    console.log(`[Transfer] Connecting to room: "${currentRoomId}"`);
 
     // Cleanup previous
     for (const [, receiver] of receiversRef.current) {
@@ -116,11 +116,6 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         (progress) => storeActionsRef.current.updateTransfer(progress),
         (offer, decide) => pendingOfferRef.current({ offer, decide })
       );
-
-      receiver.onTextReceived = (msg) => {
-        console.log(`[Transfer] Text received from ${msg.senderName}: "${msg.text.substring(0, 50)}..."`);
-        setReceivedText(msg);
-      };
 
       receiver.onFileReceived = (blob, fileName) => {
         console.log(`[Transfer] File received: ${fileName} (${blob.size} bytes)`);
@@ -170,16 +165,15 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
 
     managerRef.current = manager;
 
-    // Detect local subnet and connect — subnet helps auto-group same-WiFi devices
     detectLocalSubnet().then((subnet) => {
       if (subnet) {
         console.log(`[Transfer] Detected local subnet: ${subnet}`);
       }
-      manager.connect(roomId, detectDeviceType(), deviceName, subnet || undefined);
+      manager.connect(currentRoomId, detectDeviceType(), deviceName, subnet || undefined);
     });
 
     return () => {
-      console.log(`[Transfer] Cleaning up room: "${roomId}"`);
+      console.log(`[Transfer] Cleaning up room: "${currentRoomId}"`);
       for (const [, receiver] of receiversRef.current) {
         receiver.destroy();
       }
@@ -187,7 +181,7 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
       manager.disconnect();
       managerRef.current = null;
     };
-  }, [roomId, deviceName]);
+  }, [currentRoomId, deviceName]);
 
   const sendFiles = useCallback(
     async (peerId: string, files: File[]) => {
@@ -202,7 +196,6 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
 
       let bundleId: string | undefined;
 
-      // If sending multiple files, send a bundle-offer first and wait for approval
       if (files.length > 1) {
         bundleId = crypto.randomUUID();
         const bundleOffer = {
@@ -215,7 +208,6 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
         channel.send(JSON.stringify(bundleOffer));
         console.log(`[Transfer] Sent bundle-offer (${files.length} files) to ${peerName}`);
 
-        // Wait for bundle-accept or bundle-reject
         const bundleAccepted = await new Promise<boolean>((resolve) => {
           const handler = (event: MessageEvent) => {
             if (typeof event.data !== "string") return;
@@ -233,7 +225,6 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
           };
           channel.addEventListener("message", handler);
 
-          // Timeout after 60s
           setTimeout(() => {
             channel.removeEventListener("message", handler);
             resolve(false);
@@ -242,7 +233,6 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
 
         if (!bundleAccepted) {
           console.log(`[Transfer] Bundle rejected by ${peerName}`);
-          // Update progress for all files as rejected
           for (const file of files) {
             updateTransfer({
               transferId: crypto.randomUUID(),
@@ -274,32 +264,9 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
     [updateTransfer]
   );
 
-  const sendText = useCallback(
-    (peerId: string, text: string) => {
-      const channel = managerRef.current?.getDataChannel(peerId);
-      if (!channel || channel.readyState !== "open") {
-        console.error(`[Transfer] No open channel to peer ${peerId}`);
-        return;
-      }
-
-      const myName = useDeviceStore.getState().myName || "Unknown";
-      const isUrl = /^https?:\/\/\S+$/i.test(text.trim());
-      const msg: TextShareMessage = {
-        type: "text-share",
-        id: crypto.randomUUID(),
-        text: text.trim(),
-        senderName: myName,
-        isUrl,
-        timestamp: Date.now(),
-      };
-      channel.send(JSON.stringify(msg));
-      console.log(`[Transfer] Sent text to ${peerId}: "${text.substring(0, 50)}..."`);
-    },
-    []
-  );
-
-  const dismissReceivedText = useCallback(() => {
-    setReceivedText(null);
+  // Switch room — this is the ONLY way the room should change
+  const switchRoom = useCallback((roomId: string) => {
+    setCurrentRoomId(roomId === "auto" ? "auto" : roomId);
   }, []);
 
   const respondToOffer = useCallback(
@@ -314,10 +281,9 @@ export function useTransfer(options: { roomId?: string; deviceName?: string } = 
 
   return {
     pendingOffer,
-    receivedText,
+    currentRoomId,
     sendFiles,
-    sendText,
+    switchRoom,
     respondToOffer,
-    dismissReceivedText,
   };
 }

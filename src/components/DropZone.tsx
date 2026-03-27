@@ -69,7 +69,6 @@ export default function DropZone({
       {isPrimary && (
         <div className="flex items-baseline justify-between mb-4 mt-2">
           <h2 className="text-2xl font-headline font-bold uppercase tracking-tighter text-on-surface">{title}</h2>
-          <span className="text-[10px] font-mono text-secondary/40 tracking-[0.2em] hidden sm:block">ENCRYPTED_TUNNEL::ACTIVE</span>
         </div>
       )}
       
@@ -97,12 +96,12 @@ export default function DropZone({
             {isDragOver ? "file_download" : icon}
           </span>
           <h3 className={`font-headline font-bold uppercase tracking-tight ${isPrimary ? "text-lg" : "text-sm"}`}>
-            {isDragOver ? "AWAITING DROP" : isPrimary ? "Initialize Payload" : title}
+            {isDragOver ? "Drop here" : isPrimary ? "Drop Files" : title}
           </h3>
           <p className={`font-mono text-secondary/60 ${isPrimary ? "text-[10px]" : "text-[8px]"}`}>
-            {isDragOver ? "RELEASE TO TRANSMIT" : (
+            {isDragOver ? "Release to send" : (
               <>
-                DRAG & DROP OR <span className="text-[#FF513A] underline decoration-[#FF513A]/30 underline-offset-4">{action || "SELECT CORE FILES"}</span>
+                Drag & drop or <span className="text-[#FF513A] underline decoration-[#FF513A]/30 underline-offset-4">{action || "browse files"}</span>
               </>
             )}
           </p>

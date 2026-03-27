@@ -4,12 +4,11 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import ConnectionBar from "./ConnectionBar";
 import TransferToast from "./TransferToast";
-import TextToast from "./TextToast";
 import { useTransferContext } from "../context/TransferContext";
 import { useTransferStore } from "../stores/transferStore";
 
 export default function Layout() {
-  const { pendingOffer, respondToOffer, receivedText, dismissReceivedText } = useTransferContext();
+  const { pendingOffer, respondToOffer } = useTransferContext();
   const history = useTransferStore((s) => s.history);
   const [liveMessage, setLiveMessage] = useState("");
 
@@ -27,8 +26,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Scanline effect */}
-      <div className="scanline-effect" />
 
       <Sidebar />
       <main className="md:ml-64 min-h-screen pb-20 md:pb-0 relative">
@@ -46,12 +43,6 @@ export default function Layout() {
         />
       )}
 
-      {receivedText && !pendingOffer && (
-        <TextToast
-          message={receivedText}
-          onDismiss={dismissReceivedText}
-        />
-      )}
 
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {liveMessage}

@@ -27,8 +27,7 @@ export default function Sidebar() {
       <aside className="fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-surface-container-high flex-col py-8 px-4 z-40 hidden md:flex">
         {/* Logo Section */}
         <div className="mb-12 px-2">
-          <h1 className="text-xl font-black text-primary font-headline tracking-tight uppercase">DropIt Node</h1>
-          <p className="text-[10px] text-secondary/40 font-mono tracking-widest mt-1">v4.2.0-alpha</p>
+          <h1 className="text-xl font-black text-primary font-headline tracking-tight uppercase">DropIt</h1>
         </div>
 
         {/* Navigation Links */}
@@ -72,7 +71,7 @@ export default function Sidebar() {
               <div className="overflow-hidden">
                 <p className="text-xs font-bold truncate">{displayName}</p>
                 <p className={`text-[10px] font-mono tracking-widest ${isConnected ? "text-green-500" : "text-secondary/60"}`}>
-                  {isConnected ? "NODE LINKED" : "OFFLINE"}
+                  {isConnected ? "Connected" : "Offline"}
                 </p>
               </div>
             </div>

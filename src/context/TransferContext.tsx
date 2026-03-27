@@ -1,15 +1,11 @@
-import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useCallback, useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTransfer, type PendingOffer } from "../hooks/useTransfer";
-import type { TextShareMessage } from "../services/transfer";
 
 interface TransferContextValue {
   pendingOffer: PendingOffer | null;
-  receivedText: TextShareMessage | null;
   sendFiles: (peerId: string, files: File[]) => Promise<void>;
-  sendText: (peerId: string, text: string) => void;
   respondToOffer: (accept: boolean) => void;
-  dismissReceivedText: () => void;
   joinRoom: (roomId: string) => void;
 }
 
@@ -17,15 +13,18 @@ const TransferContext = createContext<TransferContextValue | null>(null);
 
 export function TransferProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const roomFromUrl = searchParams.get("room") || undefined;
 
-  const { pendingOffer, receivedText, sendFiles, sendText, respondToOffer, dismissReceivedText } = useTransfer({
-    roomId: roomFromUrl,
+  // Read room from URL ONLY on first render — navigation between pages won't change it
+  const initialRoomRef = useRef(searchParams.get("room") || undefined);
+
+  const { pendingOffer, sendFiles, respondToOffer, switchRoom } = useTransfer({
+    roomId: initialRoomRef.current,
   });
 
-  // Only update the URL — the useEffect in useTransfer reacts to roomId changes
+  // joinRoom: update the URL for shareability AND switch the actual room
   const joinRoom = useCallback(
     (roomId: string) => {
+      // Update URL
       if (roomId === "auto") {
         setSearchParams((prev) => {
           prev.delete("room");
@@ -34,12 +33,14 @@ export function TransferProvider({ children }: { children: ReactNode }) {
       } else {
         setSearchParams({ room: roomId });
       }
+      // Actually switch the room in PeerManager
+      switchRoom(roomId);
     },
-    [setSearchParams]
+    [setSearchParams, switchRoom]
   );
 
   return (
-    <TransferContext.Provider value={{ pendingOffer, receivedText, sendFiles, sendText, respondToOffer, dismissReceivedText, joinRoom }}>
+    <TransferContext.Provider value={{ pendingOffer, sendFiles, respondToOffer, joinRoom }}>
       {children}
     </TransferContext.Provider>
   );
