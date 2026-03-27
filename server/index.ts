@@ -109,10 +109,25 @@ function removePeer(ws: WebSocket) {
 function getClientIp(req: IncomingMessage): string {
   // Support reverse proxies (Railway, Render, etc.)
   const forwarded = req.headers["x-forwarded-for"];
+  let ip: string;
   if (typeof forwarded === "string") {
-    return forwarded.split(",")[0].trim();
+    ip = forwarded.split(",")[0].trim();
+  } else {
+    ip = req.socket.remoteAddress || "unknown";
   }
-  return req.socket.remoteAddress || "unknown";
+
+  // Normalize IPv4-mapped IPv6 addresses (e.g. "::ffff:192.168.1.1" → "192.168.1.1")
+  if (ip.startsWith("::ffff:")) {
+    ip = ip.slice(7);
+  }
+
+  // Strip IPv6 zone ID suffix (e.g. "fe80::1%eth0" → "fe80::1")
+  const zoneIdx = ip.indexOf("%");
+  if (zoneIdx !== -1) {
+    ip = ip.slice(0, zoneIdx);
+  }
+
+  return ip;
 }
 
 function getAutoRoomId(ip: string): string {
@@ -239,6 +254,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           name: peer.name,
           roomId,
           peers: existingPeers,
+          clientIp, // Debug: helps frontend identify IP mismatch issues
         });
 
         broadcast(roomId, peer.id, {
