@@ -44,7 +44,7 @@ export default function DeviceCard({ device, onClick }: DeviceCardProps) {
         <div className="flex-1 overflow-hidden">
           <p className="text-sm font-bold font-headline uppercase truncate">{device.name}</p>
           <p className="text-[10px] text-secondary/50 font-mono truncate">
-            {isConnected ? "SECURE TUNNEL • ACTIVE" : isConnecting ? "NEGOTIATING..." : "NO SIGNAL"}
+            {isConnected ? "Connected" : isConnecting ? "Connecting..." : "Offline"}
           </p>
         </div>
         <button className={`${isConnected ? "text-primary" : "text-gray-500"} opacity-0 group-hover:opacity-100 transition-opacity`}>

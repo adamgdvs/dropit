@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import TopBar from "./TopBar";
 import ConnectionBar from "./ConnectionBar";
 import TransferToast from "./TransferToast";
 import { useTransferContext } from "../context/TransferContext";
@@ -26,12 +25,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-
       <Sidebar />
       <main className="md:ml-64 min-h-screen pb-20 md:pb-0 relative">
-        <TopBar />
-        {/* Spacer to push content below the fixed TopBar */}
-        <div className="h-12" />
         <ConnectionBar />
         <Outlet />
       </main>
@@ -42,7 +37,6 @@ export default function Layout() {
           onDecide={respondToOffer}
         />
       )}
-
 
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {liveMessage}

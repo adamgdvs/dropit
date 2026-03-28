@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useDeviceStore } from "../stores/deviceStore";
+import { useSettingsStore } from "../stores/settingsStore";
 import { useTransferContext } from "../context/TransferContext";
 
 function getSignalHttpUrl(): string {
@@ -23,6 +24,19 @@ export default function ConnectionBar() {
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
   const { joinRoom } = useTransferContext();
+  const theme = useSettingsStore((s) => s.theme);
+  const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+
+  const cycleTheme = () => {
+    const order: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
+    const next = order[(order.indexOf(theme) + 1) % order.length];
+    setTheme(next);
+  };
+
+  const themeIcon =
+    theme === "system" ? "brightness_auto" :
+    resolvedTheme() === "dark" ? "dark_mode" : "light_mode";
 
   const [showPairing, setShowPairing] = useState(false);
   const [joinCode, setJoinCode] = useState("");
@@ -135,8 +149,15 @@ export default function ConnectionBar() {
           )}
         </div>
 
-        {/* Right: Pairing toggle */}
+        {/* Right: Theme + Pairing */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={cycleTheme}
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
+            aria-label={`Switch theme, current: ${theme}`}
+          >
+            <span className="material-symbols-outlined text-lg">{themeIcon}</span>
+          </button>
           <button
             onClick={() => setShowPairing(!showPairing)}
             aria-expanded={showPairing}
@@ -152,7 +173,7 @@ export default function ConnectionBar() {
           {!isAutoRoom && (
             <button
               onClick={handleBackToAuto}
-              className="font-mono text-[10px] text-primary border border-primary px-3 py-1.5 hover:bg-primary hover:text-white transition-colors"
+              className="font-mono text-[10px] text-primary border border-primary px-3 py-1.5 min-h-[44px] hover:bg-primary hover:text-white transition-colors"
             >
               AUTO
             </button>

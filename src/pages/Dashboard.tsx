@@ -4,34 +4,36 @@ import { useDeviceStore } from "../stores/deviceStore";
 import { useTransferStore } from "../stores/transferStore";
 import { formatBytes } from "../services/files";
 import DropZone from "../components/DropZone";
-import DeviceCard from "../components/DeviceCard";
 import PeerPicker from "../components/PeerPicker";
 
 export default function Dashboard() {
-  const { sendFiles, joinRoom } = useTransferContext();
+  const { sendFiles } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
   const deviceList = useDeviceStore((s) => s.deviceList);
   const connectedDevices = useDeviceStore((s) => s.connectedDevices);
   const activeList = useTransferStore((s) => s.activeList);
   const history = useTransferStore((s) => s.history);
 
+  const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
-  const [joinCode, setJoinCode] = useState("");
-  const [pairingError, setPairingError] = useState<string | null>(null);
 
   const peers = deviceList();
   const connected = connectedDevices();
+  const nearbyDevices = peers.filter((d) => d.connectionState === "connected");
   const activeTransfer = activeList().find(
     (t) => t.status === "transferring" || t.status === "pending" || t.status === "accepted"
   );
   const recentTransfers = history.slice(0, 5);
 
   const handleFilesSelected = (files: File[]) => {
-    if (connected.length === 1) {
+    if (selectedPeer) {
+      sendFiles(selectedPeer, files);
+    } else if (connected.length === 1) {
       sendFiles(connected[0].id, files);
     } else if (connected.length > 1) {
       setPendingFiles(files);
     } else {
+      // No peers — hold files until a peer connects
       setPendingFiles(files);
     }
   };
@@ -43,30 +45,19 @@ export default function Dashboard() {
     }
   };
 
-  const getSignalHttpUrl = () => {
-    const wsUrl = import.meta.env.VITE_SIGNAL_URL || "ws://localhost:3001";
-    return wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+  const handleDeviceClick = (deviceId: string) => {
+    setSelectedPeer(selectedPeer === deviceId ? null : deviceId);
   };
 
-  const handleCreateRoom = async () => {
-    setPairingError(null);
-    try {
-      const res = await fetch(`${getSignalHttpUrl()}/api/room`, { method: "POST" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const code = data.roomCode as string;
-      if (!code) throw new Error("No code returned");
-      joinRoom(code);
-    } catch (err) {
-      setPairingError(err instanceof Error ? err.message : "Failed to create room");
-    }
-  };
-
-  const handleJoinRoom = () => {
-    const code = joinCode.trim().toUpperCase();
-    if (code) {
-      joinRoom(code);
-      setJoinCode("");
+  const getDeviceIcon = (deviceType: string) => {
+    switch (deviceType) {
+      case "phone":
+      case "mobile":
+        return "smartphone";
+      case "tablet":
+        return "tablet_mac";
+      default:
+        return "laptop_mac";
     }
   };
 
@@ -81,13 +72,55 @@ export default function Dashboard() {
           </p>
         </header>
 
+        {/* Nearby Devices — always visible */}
+        {nearbyDevices.length > 0 && (
+          <section>
+            <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+              Nearby Devices
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {nearbyDevices.map((device) => (
+                <button
+                  key={device.id}
+                  onClick={() => handleDeviceClick(device.id)}
+                  className={`p-4 border-l-2 text-left transition-all duration-200 ${
+                    selectedPeer === device.id
+                      ? "bg-primary/10 border-primary"
+                      : "bg-surface-container-low border-transparent hover:border-primary/40 hover:bg-surface-container"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-surface-container-highest flex items-center justify-center shrink-0">
+                      <span className={`material-symbols-outlined ${selectedPeer === device.id ? "text-primary" : "text-on-surface-variant"}`}>
+                        {getDeviceIcon(device.deviceType)}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold font-headline uppercase truncate">{device.name}</p>
+                      <p className="text-[10px] font-mono text-primary">Connected</p>
+                    </div>
+                  </div>
+                  {selectedPeer === device.id && (
+                    <p className="text-[10px] font-mono text-primary mt-2 uppercase">Selected — drop files to send</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Drop zone + recent transfers */}
           <div className="lg:col-span-2 space-y-6">
             <DropZone
               title="Quick Drop"
-              subtitle=""
+              subtitle={selectedPeer
+                ? `Sending to ${nearbyDevices.find(d => d.id === selectedPeer)?.name || "device"}`
+                : connected.length > 0
+                  ? "Drop files to send"
+                  : "Connect a device first"
+              }
               variant="primary"
               onFilesSelected={handleFilesSelected}
             />
@@ -138,82 +171,45 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Right: Devices panel */}
+          {/* Right: Active transfer sidebar */}
           <div className="space-y-6">
-            <section className="border border-outline p-4">
-              <div className="flex justify-between items-center mb-4 pb-3 border-b border-outline">
-                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant">Devices</h2>
-                <span className={`font-mono text-[10px] font-bold px-2 py-1 ${
-                  connected.length > 0 ? "bg-primary text-white" : "border border-outline text-on-surface-variant"
-                }`}>
-                  {connected.length} Connected
-                </span>
-              </div>
-              <div className="space-y-2">
-                {peers.map((peer) => (
-                  <DeviceCard key={peer.id} device={peer as any} onClick={() => {}} />
-                ))}
-                {peers.length === 0 && (
-                  <div className="text-center py-6 space-y-4">
-                    <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 block">devices</span>
-                    <p className="font-mono text-xs text-on-surface-variant">No devices nearby</p>
-
-                    {/* Inline pairing controls */}
-                    <div className="space-y-3 pt-2 border-t border-outline mt-4">
-                      <p className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-wider">Connect manually</p>
-                      <button
-                        onClick={handleCreateRoom}
-                        className="w-full bg-primary text-white py-2.5 min-h-[44px] font-headline text-xs font-bold uppercase tracking-widest hover:opacity-80 active:scale-95 transition-all"
-                      >
-                        Create Room Code
-                      </button>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={joinCode}
-                          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                          onKeyDown={(e) => e.key === "Enter" && handleJoinRoom()}
-                          placeholder="ENTER CODE"
-                          className="flex-1 bg-background border border-outline px-3 py-2 min-h-[44px] font-mono text-xs uppercase tracking-wider placeholder:text-on-surface-variant/40 focus:border-primary focus:outline-none transition-colors"
-                        />
-                        <button
-                          onClick={handleJoinRoom}
-                          disabled={!joinCode.trim()}
-                          className="px-4 py-2 min-h-[44px] bg-on-surface text-background font-mono text-[10px] uppercase hover:bg-primary transition-colors disabled:opacity-50"
-                        >
-                          Join
-                        </button>
-                      </div>
-                      {pairingError && (
-                        <p className="font-mono text-[10px] text-primary">{pairingError}</p>
-                      )}
-                    </div>
+            {activeTransfer && (
+              <section className="border border-outline p-4">
+                <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+                  Active Transfer
+                </h2>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold truncate max-w-[160px]">{activeTransfer.fileName}</span>
+                    <span className="font-mono text-[10px] text-primary font-bold">{activeTransfer.progress}%</span>
                   </div>
-                )}
-              </div>
-            </section>
+                  <div className="h-1.5 w-full bg-outline overflow-hidden">
+                    <div className="h-full bg-primary transition-all" style={{ width: `${activeTransfer.progress}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-on-surface-variant">
+                    <span>{activeTransfer.direction === "send" ? "Sending" : "Receiving"}</span>
+                    <span>{formatBytes(activeTransfer.bytesTransferred)} / {formatBytes(activeTransfer.fileSize)}</span>
+                  </div>
+                  {activeTransfer.speed > 0 && (
+                    <p className="text-[10px] font-mono text-on-surface-variant">{formatBytes(activeTransfer.speed)}/s</p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* No devices hint */}
+            {nearbyDevices.length === 0 && (
+              <section className="border border-outline p-4 text-center">
+                <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 block mb-3">devices</span>
+                <p className="font-mono text-xs text-on-surface-variant mb-1">No devices nearby</p>
+                <p className="font-mono text-[10px] text-on-surface-variant/50">
+                  Open DropIt on another device, or use the Pair button above to connect manually
+                </p>
+              </section>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Floating transfer status */}
-      {activeTransfer && (
-        <div className="fixed bottom-6 right-6 flex items-center gap-4 px-6 py-4 border bg-surface border-outline z-50 shadow-lg">
-          <span className="material-symbols-outlined animate-spin text-primary">sync</span>
-          <div className="flex flex-col">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              {activeTransfer.direction === "send" ? "Sending" : "Receiving"}
-            </span>
-            <span className="text-sm font-bold truncate max-w-[180px]">{activeTransfer.fileName}</span>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="w-20 h-1 bg-outline overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${activeTransfer.progress}%` }} />
-            </div>
-            <span className="font-mono text-[10px] font-bold text-on-surface-variant">{activeTransfer.progress}%</span>
-          </div>
-        </div>
-      )}
 
       {pendingFiles && (
         <PeerPicker
