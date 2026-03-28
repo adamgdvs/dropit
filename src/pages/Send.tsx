@@ -9,22 +9,17 @@ import { useState } from "react";
 
 export default function Send() {
   const { sendFiles } = useTransferContext();
-  const deviceList = useDeviceStore((s) => s.deviceList);
-  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const peers = useDeviceStore((s) => s.deviceArray);
+  const connected = useDeviceStore((s) => s.connectedArray);
   const queued = useFileStore((s) => s.queued);
   const addQueued = useFileStore((s) => s.addQueued);
   const removeQueued = useFileStore((s) => s.removeQueued);
   const clearQueued = useFileStore((s) => s.clearQueued);
-  const activeList = useTransferStore((s) => s.activeList);
-  const totalSpeed = useTransferStore((s) => s.totalSpeed);
+  const activeArray = useTransferStore((s) => s.activeArray);
 
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
-
-  const peers = deviceList();
-  const connected = connectedDevices();
-  const nearbyDevices = peers.filter((d) => d.connectionState === "connected");
-  const transfers = activeList();
+  const transfers = activeArray;
 
   // Add files to the staging queue
   const handleAddFiles = (files: File[]) => {
@@ -76,7 +71,7 @@ export default function Send() {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tighter uppercase text-on-surface">Send Files</h1>
               <p className="text-secondary font-mono text-[10px] uppercase tracking-widest mt-2">
-                {nearbyDevices.length} device{nearbyDevices.length !== 1 ? "s" : ""} connected &bull; {queued.length} queued
+                {connected.length} device{connected.length !== 1 ? "s" : ""} connected &bull; {queued.length} queued
               </p>
             </div>
             <div className="flex gap-2">
@@ -99,14 +94,14 @@ export default function Send() {
           <section>
             <h2 className="font-headline text-sm font-medium text-secondary uppercase tracking-[0.2em] mb-4">Nearby Devices</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {nearbyDevices.length === 0 ? (
+              {connected.length === 0 ? (
                 <div className="col-span-full border border-surface-container-highest p-8 text-center text-secondary">
                   <span className="material-symbols-outlined text-4xl mb-2 block">radar</span>
                   <p className="font-mono text-sm uppercase">Scanning for nodes...</p>
                   <p className="font-mono text-[10px] mt-1">Open DropIt on another device</p>
                 </div>
               ) : (
-                nearbyDevices.map((device) => (
+                connected.map((device) => (
                   <div
                     key={device.id}
                     onClick={() => setSelectedPeer(device.id)}
@@ -236,7 +231,7 @@ export default function Send() {
               <div className="mt-8 pt-4 border-t border-surface-container-highest">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-secondary uppercase font-bold tracking-widest">Speed</span>
-                  <span className="text-[10px] font-headline text-primary font-bold">{formatBytes(totalSpeed())}/s</span>
+                  <span className="text-[10px] font-headline text-primary font-bold">{formatBytes(activeArray.reduce((sum, t) => sum + t.speed, 0))}/s</span>
                 </div>
               </div>
             )}

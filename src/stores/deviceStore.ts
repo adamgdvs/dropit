@@ -11,6 +11,9 @@ export interface DeviceInfo {
 
 interface DeviceState {
   devices: Map<string, DeviceInfo>;
+  /** Pre-computed arrays — updated every time devices changes */
+  deviceArray: DeviceInfo[];
+  connectedArray: DeviceInfo[];
   myId: string | null;
   myName: string | null;
   roomId: string | null;
@@ -21,29 +24,30 @@ interface DeviceState {
   setIdentity: (id: string, name: string) => void;
   setRoomId: (roomId: string) => void;
   setSignalingConnected: (connected: boolean) => void;
-
-  // Derived
-  connectedDevices: () => DeviceInfo[];
-  deviceList: () => DeviceInfo[];
 }
 
-export const useDeviceStore = create<DeviceState>((set, get) => ({
+export const useDeviceStore = create<DeviceState>((set) => ({
   devices: new Map(),
+  deviceArray: [],
+  connectedArray: [],
   myId: null,
   myName: null,
   roomId: null,
   isSignalingConnected: false,
 
-  setDevices: (devices) => set({ devices: new Map(devices) }),
+  setDevices: (devices) => {
+    const newMap = new Map(devices);
+    const all = Array.from(newMap.values());
+    set({
+      devices: newMap,
+      deviceArray: all,
+      connectedArray: all.filter((d) => d.connectionState === "connected"),
+    });
+  },
 
   setIdentity: (id, name) => set({ myId: id, myName: name }),
 
   setRoomId: (roomId) => set({ roomId }),
 
   setSignalingConnected: (connected) => set({ isSignalingConnected: connected }),
-
-  connectedDevices: () =>
-    Array.from(get().devices.values()).filter((d) => d.connectionState === "connected"),
-
-  deviceList: () => Array.from(get().devices.values()),
 }));

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { useNavigate } from "react-router-dom";
 import { useDeviceStore } from "../stores/deviceStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useTransferContext } from "../context/TransferContext";
@@ -19,10 +20,11 @@ function getSignalHttpUrl(): string {
 const SIGNAL_HTTP_URL = getSignalHttpUrl();
 
 export default function ConnectionBar() {
+  const navigate = useNavigate();
   const myName = useDeviceStore((s) => s.myName);
   const roomId = useDeviceStore((s) => s.roomId);
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
-  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const connectedArray = useDeviceStore((s) => s.connectedArray);
   const { joinRoom } = useTransferContext();
   const theme = useSettingsStore((s) => s.theme);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
@@ -45,9 +47,22 @@ export default function ConnectionBar() {
   const [error, setError] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
 
-  const connected = connectedDevices();
+  const connected = connectedArray;
+  const prevConnectedCount = useRef(connected.length);
   const isAutoRoom = !roomId || roomId.startsWith("auto_");
+
+  // Auto-close pairing panel when a peer connects
+  useEffect(() => {
+    if (connected.length > 0 && prevConnectedCount.current === 0) {
+      // A peer just connected — close the pairing panel and show feedback
+      setShowPairing(false);
+      setJustConnected(true);
+      setTimeout(() => setJustConnected(false), 3000);
+    }
+    prevConnectedCount.current = connected.length;
+  }, [connected.length]);
 
   const shareableLink = createdCode
     ? `${window.location.origin}${window.location.pathname}?room=${createdCode}`
@@ -132,7 +147,11 @@ export default function ConnectionBar() {
         <div className="flex items-center gap-2">
           {connected.length > 0 ? (
             connected.map((d) => (
-              <div key={d.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 border border-primary/20">
+              <button
+                key={d.id}
+                onClick={() => navigate("/")}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-colors cursor-pointer"
+              >
                 <span className="material-symbols-outlined text-primary text-sm">
                   {d.deviceType === "phone" ? "smartphone" : d.deviceType === "tablet" ? "tablet_mac" : "laptop_mac"}
                 </span>
@@ -140,8 +159,12 @@ export default function ConnectionBar() {
                   {d.name}
                 </span>
                 <span className="w-1.5 h-1.5 bg-primary" />
-              </div>
+              </button>
             ))
+          ) : justConnected ? (
+            <span className="font-mono text-[10px] text-primary font-bold animate-pulse">
+              CONNECTED
+            </span>
           ) : (
             <span className="font-mono text-[10px] text-on-surface-variant">
               {isConnected ? "NO DEVICES" : "OFFLINE"}

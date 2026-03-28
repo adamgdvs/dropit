@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTransferContext } from "../context/TransferContext";
 import { useDeviceStore } from "../stores/deviceStore";
 import { useTransferStore } from "../stores/transferStore";
@@ -9,18 +9,24 @@ import PeerPicker from "../components/PeerPicker";
 export default function Dashboard() {
   const { sendFiles } = useTransferContext();
   const isConnected = useDeviceStore((s) => s.isSignalingConnected);
-  const deviceList = useDeviceStore((s) => s.deviceList);
-  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
-  const activeList = useTransferStore((s) => s.activeList);
+  const peers = useDeviceStore((s) => s.deviceArray);
+  const connected = useDeviceStore((s) => s.connectedArray);
+  const activeArray = useTransferStore((s) => s.activeArray);
   const history = useTransferStore((s) => s.history);
 
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 
-  const peers = deviceList();
-  const connected = connectedDevices();
-  const nearbyDevices = peers.filter((d) => d.connectionState === "connected");
-  const activeTransfer = activeList().find(
+  // Auto-select peer when there's exactly one connected device
+  useEffect(() => {
+    if (connected.length === 1) {
+      setSelectedPeer(connected[0].id);
+    } else if (connected.length === 0) {
+      setSelectedPeer(null);
+    }
+  }, [connected]);
+
+  const activeTransfer = activeArray.find(
     (t) => t.status === "transferring" || t.status === "pending" || t.status === "accepted"
   );
   const recentTransfers = history.slice(0, 5);
@@ -33,7 +39,6 @@ export default function Dashboard() {
     } else if (connected.length > 1) {
       setPendingFiles(files);
     } else {
-      // No peers — hold files until a peer connects
       setPendingFiles(files);
     }
   };
@@ -72,14 +77,14 @@ export default function Dashboard() {
           </p>
         </header>
 
-        {/* Nearby Devices — always visible */}
-        {nearbyDevices.length > 0 && (
+        {/* Connected Devices */}
+        {connected.length > 0 && (
           <section>
             <h2 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-              Nearby Devices
+              Connected Devices
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {nearbyDevices.map((device) => (
+              {connected.map((device) => (
                 <button
                   key={device.id}
                   onClick={() => handleDeviceClick(device.id)}
@@ -116,10 +121,10 @@ export default function Dashboard() {
             <DropZone
               title="Quick Drop"
               subtitle={selectedPeer
-                ? `Sending to ${nearbyDevices.find(d => d.id === selectedPeer)?.name || "device"}`
+                ? `Sending to ${connected.find(d => d.id === selectedPeer)?.name || "device"}`
                 : connected.length > 0
                   ? "Drop files to send"
-                  : "Connect a device first"
+                  : "Tap PAIR above to connect a device"
               }
               variant="primary"
               onFilesSelected={handleFilesSelected}
@@ -198,12 +203,12 @@ export default function Dashboard() {
             )}
 
             {/* No devices hint */}
-            {nearbyDevices.length === 0 && (
+            {connected.length === 0 && (
               <section className="border border-outline p-4 text-center">
                 <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 block mb-3">devices</span>
-                <p className="font-mono text-xs text-on-surface-variant mb-1">No devices nearby</p>
+                <p className="font-mono text-xs text-on-surface-variant mb-1">No devices connected</p>
                 <p className="font-mono text-[10px] text-on-surface-variant/50">
-                  Open DropIt on another device, or use the Pair button above to connect manually
+                  Tap PAIR above — create a code on this device, enter it on the other
                 </p>
               </section>
             )}

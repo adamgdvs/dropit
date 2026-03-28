@@ -8,17 +8,14 @@ import { useState } from "react";
 
 export default function MyFiles() {
   const { sendFiles } = useTransferContext();
-  const deviceList = useDeviceStore((s) => s.deviceList);
-  const connectedDevices = useDeviceStore((s) => s.connectedDevices);
+  const peers = useDeviceStore((s) => s.deviceArray);
+  const connected = useDeviceStore((s) => s.connectedArray);
   const queued = useFileStore((s) => s.queued);
   const addQueued = useFileStore((s) => s.addQueued);
   const removeQueued = useFileStore((s) => s.removeQueued);
   const clearQueued = useFileStore((s) => s.clearQueued);
 
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
-
-  const peers = deviceList();
-  const connected = connectedDevices();
 
   const handleAddFiles = (files: File[]) => {
     addQueued(files);
